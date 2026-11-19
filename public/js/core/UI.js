@@ -11,6 +11,11 @@ export class UI {
     // keep Space (handbrake) from re-clicking a HUD button that still has focus
     this.hud.addEventListener('click', (e) => e.target.blur?.());
 
+    this.inName = $('in-name'); this.inRoom = $('in-room');
+    try { this.inName.value = localStorage.getItem('apexdrive.name') || ''; this.inRoom.value = localStorage.getItem('apexdrive.room') || ''; } catch { /* storage unavailable */ }
+    this.inRoom.oninput = () => (this.inRoom.value = this.inRoom.value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+    // typing a name must never steer the car or trigger R / Esc handlers
+    for (const el of [this.inName, this.inRoom]) el.addEventListener('keydown', (e) => { if (e.code !== 'Escape') e.stopPropagation(); });
     $('btn-play').onclick = () => cb.onPlay();
     $('btn-resume').onclick = () => cb.onResume();
     $('btn-reset').onclick = () => cb.onReset();
@@ -43,9 +48,32 @@ export class UI {
   showHud(on) { this.hud.classList.toggle('hidden', !on); }
   hideLoading() { this.$('loading').classList.add('done'); }
 
-  setNet({ online, ping }) {
-    const n = this.$('net'); n.classList.toggle('on', !!online);
+  identity() {
+    const name = this.inName.value.trim() || 'Driver', room = this.inRoom.value.trim();
+    try { localStorage.setItem('apexdrive.name', this.inName.value.trim()); localStorage.setItem('apexdrive.room', room); } catch { /* ignore */ }
+    return { name, room };
+  }
+  setNet(s) {
+    this._net = { ...this._net, ...s };
+    if (this._flash) return;
+    const { online, ping } = this._net, n = this.$('net'); n.classList.toggle('on', !!online);
     n.textContent = online ? `● SERVER ONLINE${ping != null ? ' · ' + ping + ' MS' : ''}` : '○ OFFLINE · SINGLE PLAYER';
+  }
+  flashNet(text) {
+    const n = this.$('net'); this._flash = true; n.classList.remove('on'); n.textContent = text;
+    clearTimeout(this._ft); this._ft = setTimeout(() => { this._flash = false; this.setNet({}); }, 3000);
+  }
+  setMode(text) { this.$('mode').textContent = text; }
+  setPlayers(rows) {
+    const el = this.$('players'); el.classList.toggle('hidden', rows.length < 2);
+    if (rows.length < 2) return;
+    el.replaceChildren(...rows.map((r) => {
+      const d = document.createElement('div'); d.className = 'p' + (r.me ? ' me' : '');
+      const dot = document.createElement('i'); dot.style.background = '#' + r.color.toString(16).padStart(6, '0');
+      const nm = document.createElement('span'); nm.textContent = r.name;
+      const sp = document.createElement('b'); sp.textContent = r.kmh + ' km/h';
+      d.append(dot, nm, sp); return d;
+    }));
   }
   toast(text) {
     const t = this.$('toast'); t.textContent = text; t.classList.add('on');

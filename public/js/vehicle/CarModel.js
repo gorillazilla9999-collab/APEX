@@ -19,14 +19,15 @@ function profile(pts, width, bev) {
 }
 
 export class CarModel {
-  constructor() {
+  /** opts.color: paint colour; opts.beams: headlight spotlights (disable for remote cars - they are costly). */
+  constructor({ color = 0xc8101e, beams = true } = {}) {
     this.root = new THREE.Group();
     this.body = new THREE.Group();
     this.root.add(this.body);
     this.pitch = new Spring(); this.roll = new Spring(); this.heave = new Spring();
     this.spin = 0; this.t = 0;
 
-    const paint = new THREE.MeshPhysicalMaterial({ color: 0xc8101e, metalness: 0.55, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.04 });
+    const paint = new THREE.MeshPhysicalMaterial({ color, metalness: 0.55, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.04 });
     const dark = new THREE.MeshStandardMaterial({ color: 0x0b0c0e, roughness: 0.55, metalness: 0.3 });
     const glass = new THREE.MeshPhysicalMaterial({ color: 0x07090d, metalness: 0.9, roughness: 0.06, clearcoat: 1 });
     const chrome = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 1, roughness: 0.18 });
@@ -63,7 +64,7 @@ export class CarModel {
 
     // headlight beams
     this.beams = [];
-    for (const s of [-1, 1]) {
+    for (const s of beams ? [-1, 1] : []) {
       const sp = new THREE.SpotLight(0xfff0d8, 40, 70, 0.5, 0.6, 1);
       sp.position.set(s * 0.66, 0.7, 2.1);
       const tg = new THREE.Object3D(); tg.position.set(s * 0.5, 0, 25);
@@ -98,6 +99,11 @@ export class CarModel {
       pivot.traverse((o) => { if (o.isMesh) o.castShadow = true; });
       this.root.add(pivot); this.wheels.push({ pivot, spin, front });
     }
+  }
+
+  dispose() {
+    this.root.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); [].concat(o.material).forEach((m) => m.dispose()); } });
+    this.root.removeFromParent();
   }
 
   bump(strength) { this.heave.v -= clamp(strength, 0, 14) * 0.06; this.pitch.v += (Math.random() - 0.5) * strength * 0.02; }

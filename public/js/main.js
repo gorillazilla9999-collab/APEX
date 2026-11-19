@@ -3,6 +3,7 @@ import { Vehicle } from './physics/Vehicle.js';
 import { collideVehicle } from './physics/Collision.js';
 import { World, HORIZON } from './world/World.js';
 import { CarModel } from './vehicle/CarModel.js';
+import { RemoteCar } from './vehicle/RemoteCar.js';
 import { Smoke } from './vehicle/Smoke.js';
 import { Input } from './core/Input.js';
 import { CameraRig } from './core/CameraRig.js';
@@ -75,18 +76,39 @@ function resetVehicle(toast = true) {
   vehicle.reset(p.x, p.z, p.heading); car.update(STEP, vehicle); rig.snap(vehicle);
   if (toast && state === 'playing') ui.toast('VEHICLE RESET');
 }
-function spawnAtStart() { const p = world.track.pose(0); vehicle.reset(p.x, p.z, p.heading); car.update(STEP, vehicle); }
+/** Online players get staggered grid slots (2 abreast, ~11 m apart) so nobody spawns inside anybody else. */
+function spawnAtStart(slot = -1) {
+  const t = world.track, i = slot < 0 ? 0 : (((-slot * 4) % t.n) + t.n) % t.n, p = t.pose(i);
+  const off = slot < 0 ? 0 : (slot % 2 ? 3.2 : -3.2);
+  vehicle.reset(p.x - t.tz[i] * off, p.z + t.tx[i] * off, p.heading); car.update(STEP, vehicle);
+}
 function setState(next) {
   state = next;
   ui.showHud(next === 'playing' || next === 'paused');
   if (next === 'playing') { ui.show(null); } else if (next === 'paused') { ui.show('pause'); audio.silence(); } else { ui.show('menu'); audio.silence(); }
 }
+let joining = false;
 const ui = new UI(settings, {
-  onPlay() { audio.start(); spawnAtStart(); rig.snap(vehicle); setState('playing'); },
+  async onPlay() {
+    if (joining) return;
+    audio.start(); // inside the click handler, before any await, so the browser lets audio start
+    let slot = -1;
+    if (net.connected) {
+      joining = true;
+      try {
+        const { name, room } = ui.identity();
+        const res = await net.join(name, room);
+        syncRoster(res.players); slot = res.you.slot;
+        ui.setMode(`ONLINE · ROOM ${res.room}`);
+      } catch (e) { joining = false; ui.flashNet(`✕ ${e}`); return; }
+      joining = false;
+    } else ui.setMode('TEST DRIVE');
+    spawnAtStart(slot); rig.snap(vehicle); setState('playing');
+  },
   onResume() { setState('playing'); },
   onPause() { if (state === 'playing') setState('paused'); },
   onReset() { resetVehicle(); if (state === 'paused') setState('playing'); },
-  onQuit() { spawnAtStart(); setState('menu'); },
+  onQuit() { net.leave(); clearRemotes(); ui.setMode('TEST DRIVE'); spawnAtStart(); setState('menu'); },
 });
 input.onPress('Escape', () => {
   if (state === 'playing') setState('paused');
@@ -94,7 +116,44 @@ input.onPress('Escape', () => {
   else if (ui.current !== 'menu') ui.back();
 });
 input.onPress('KeyR', () => { if (state === 'playing') resetVehicle(); });
-new Network((s) => ui.setNet(s));
+// ---- multiplayer ----
+const remotes = new Map(); // socket id -> RemoteCar
+const clock = () => performance.now() / 1000;
+function addRemote(p) { if (p.id !== net.id && !remotes.has(p.id)) remotes.set(p.id, new RemoteCar(scene, p)); }
+function removeRemote(id) { remotes.get(id)?.dispose(); remotes.delete(id); }
+function clearRemotes() { [...remotes.keys()].forEach(removeRemote); }
+function syncRoster(players) {
+  const ids = new Set(players.map((p) => p.id));
+  for (const id of [...remotes.keys()]) if (!ids.has(id)) removeRemote(id);
+  players.forEach(addRemote);
+}
+const net = new Network((s) => ui.setNet(s))
+  .on('room:joined', (p) => { addRemote(p); if (state !== 'menu') ui.toast(`${p.name} JOINED`); })
+  .on('room:left', ({ id }) => { const r = remotes.get(id); if (r && state !== 'menu') ui.toast(`${r.name} LEFT`); removeRemote(id); })
+  .on('room:snapshot', ({ players }) => { const now = clock(); for (const p of players) remotes.get(p.id)?.push(p, now); })
+  .on('disconnected', () => { clearRemotes(); if (state !== 'menu') ui.toast('CONNECTION LOST'); })
+  .on('rejoined', (res) => { syncRoster(res.players); if (state !== 'menu') ui.toast('RECONNECTED'); })
+  .on('kicked', () => { clearRemotes(); if (state !== 'menu') ui.toast('COULD NOT REJOIN ROOM'); });
+
+let sendAcc = 0, rosterAcc = 0;
+function sendState(dt) {
+  if (!net.inRoom || state === 'menu') return;
+  rosterAcc += dt;
+  if (rosterAcc > 0.5) {
+    rosterAcc = 0;
+    const rows = [{ name: net.you?.name || 'You', color: net.you?.color ?? 0xc8101e, kmh: Math.round(vehicle.speedKmh), me: true }];
+    for (const r of remotes.values()) rows.push({ name: r.name, color: r.color, kmh: Math.round(r.v.speed * 3.6) });
+    ui.setPlayers(rows);
+  }
+  sendAcc += dt;
+  if (sendAcc < 0.05) return; // 20 Hz
+  sendAcc = 0;
+  const v = vehicle, idle = state === 'paused';
+  net.sendState({
+    x: v.x, z: v.z, h: v.heading, vx: idle ? 0 : v.vx, vz: idle ? 0 : v.vz, st: v.steer, yr: idle ? 0 : v.yawRate,
+    f: idle ? 0 : (v.braking ? 1 : 0) | (v.handbrake ? 2 : 0) | (v.nitroActive ? 4 : 0) | (v.sliding ? 8 : 0) | (v.onGrass ? 16 : 0),
+  });
+}
 
 // ---- simulation ----
 let onGrass = false;
@@ -105,8 +164,8 @@ function simulate(dt) {
   const impact = collideVehicle(vehicle, world.colliders);
   if (impact > 2.5) { rig.addShake(Math.min(1, impact / 25)); audio.impact(impact); car.bump(impact); }
 }
-function emitEffects(dt) {
-  const v = vehicle, s = Math.sin(v.heading), c = Math.cos(v.heading);
+function emitEffects(dt, v) {
+  const s = Math.sin(v.heading), c = Math.cos(v.heading);
   const slide = v.sliding || (v.handbrake && v.speed > 8), dust = v.onGrass && v.speed > 6;
   if ((slide || dust) && Math.random() < dt * 60) {
     for (const side of [-1, 1]) {
@@ -124,13 +183,21 @@ function frame(now) {
   if (state === 'playing') {
     onGrass = world.track.nearest(vehicle.x, vehicle.z).dist > ROAD_WIDTH / 2 + 1.2;
     for (acc += dt; acc >= STEP; acc -= STEP) simulate(STEP);
-    car.update(dt, vehicle); emitEffects(dt);
+    car.update(dt, vehicle); emitEffects(dt, vehicle);
     rig.update(dt, vehicle, settings.get('fov'), settings.get('shake'));
     audio.update(vehicle, input.state.throttle);
     ui.updateHud(vehicle);
   } else if (state === 'menu') {
     car.update(dt, vehicle); rig.orbitAround(dt, vehicle);
   }
+  if (remotes.size) {
+    const now = clock();
+    for (const r of remotes.values()) {
+      const rv = r.update(dt, now);
+      if (!r.away && Math.hypot(rv.x - camera.position.x, rv.z - camera.position.z) < 160) emitEffects(dt, rv);
+    }
+  }
+  sendState(dt);
   smoke.update(dt);
   world.update(tmp.set(vehicle.x, 0, vehicle.z), camera.position);
   if (composer && settings.get('bloom')) composer.render(); else renderer.render(scene, camera);

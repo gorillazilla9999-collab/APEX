@@ -16,7 +16,7 @@
 
 <!-- HUD -->
 <div id="hud" class="hidden">
-  <div class="hud-tl"><div class="brand">APEX<span>DRIVE</span></div><div class="mode">TEST DRIVE</div></div>
+  <div class="hud-tl"><div class="brand">APEX<span>DRIVE</span></div><div class="mode" id="mode">TEST DRIVE</div></div>
   <button id="btn-hud-pause" class="chip-btn" title="Pause (Esc)">❚❚ PAUSE</button>
   <div class="hud-bl">
     <div class="keys"><b>W</b> Accelerate <b>S</b> Brake <b>A/D</b> Steer <b>SPACE</b> Handbrake <b>SHIFT</b> Nitro</div>
@@ -31,6 +31,7 @@
     </svg>
     <div class="readout"><div id="hud-speed">0</div><div class="unit">KM/H</div><div class="gear"><span>GEAR</span><b id="hud-gear">N</b></div></div>
   </div>
+  <div id="players" class="players hidden"></div>
   <div id="toast" class="toast"></div>
 </div>
 
@@ -38,7 +39,9 @@
 <div id="menu" class="screen">
   <div class="panel">
     <div class="brand huge">APEX<span>DRIVE</span></div>
-    <p class="tag">3D RACING · FOUNDATION BUILD</p>
+    <p class="tag">3D RACING · MULTIPLAYER</p>
+    <label class="field">Driver name<input id="in-name" maxlength="14" placeholder="Driver" autocomplete="off" spellcheck="false"></label>
+    <label class="field">Room code <small>blank = public room</small><input id="in-room" maxlength="8" placeholder="PUBLIC" autocomplete="off" spellcheck="false"></label>
     <button id="btn-play" class="btn primary">Play</button>
     <button id="btn-settings" class="btn">Settings</button>
     <button id="btn-controls" class="btn">Controls</button>
