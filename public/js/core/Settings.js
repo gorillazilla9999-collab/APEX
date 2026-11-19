@@ -1,0 +1,16 @@
+const KEY = 'apexdrive.settings.v1';
+const DEFAULTS = { fov: 72, volume: 50, shadows: true, bloom: true, shake: true, quality: 'high' };
+
+export class Settings {
+  constructor() {
+    this.v = { ...DEFAULTS }; this.listeners = [];
+    try { Object.assign(this.v, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { /* ignore corrupt storage */ }
+  }
+  get(k) { return this.v[k]; }
+  set(k, val) {
+    this.v[k] = val;
+    try { localStorage.setItem(KEY, JSON.stringify(this.v)); } catch { /* storage may be unavailable */ }
+    this.listeners.forEach((fn) => fn(k, val));
+  }
+  onChange(fn) { this.listeners.push(fn); }
+}

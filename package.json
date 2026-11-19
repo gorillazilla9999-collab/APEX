@@ -1,0 +1,17 @@
+{
+  "name": "apex-drive",
+  "version": "0.1.0",
+  "private": true,
+  "description": "3D arcade racing foundation: Three.js client, Node.js + Socket.IO server",
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node tests/physics.test.mjs"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "three": "^0.160.0"
+  }
+}
