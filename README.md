@@ -20,7 +20,7 @@ Pick one with the **Car** button on the main menu (remembered; other players see
 | Bulldog | 6 | 6 | 6 | 8 | shortest stopping distance, very stable |
 | Phantom | 7 | 5 | 7 | 5 | fast and nimble, soft on launch and brakes |
 
-**Balance:** stat points are not equal-sum; instead `tests/cars.test.mjs` runs an AI driver through the real vehicle physics on every map and requires the mean lap times of all cars to stay within 1.2% of each other (currently about 0.6%). Each car is fastest somewhere and slowest somewhere else. `node tests/balance.mjs` prints the full lap-time table. To add a car, add an entry to `public/js/vehicle/cars.js`, then re-run the tests and nudge its stats until the spread is small.
+**Balance:** stat points are not equal-sum; instead `tests/cars.test.mjs` runs an AI driver through the real vehicle physics on every map and requires the mean lap times of all cars to stay within 1.2% of each other on the five original maps (currently about 0.6%). Across all 25 maps a looser 4% bound applies, because the near-straight layouts deliberately favour top speed (currently about 3%). Each car is fastest somewhere and slowest somewhere else. `node tests/balance.mjs` prints the full lap-time table. To add a car, add an entry to `public/js/vehicle/cars.js`, then re-run the tests and nudge its stats until the spread is small.
 
 ## Maps
 Pick one with the **Map** button on the main menu (your choice is remembered).
@@ -32,6 +32,28 @@ Pick one with the **Map** button on the main menu (your choice is remembered).
 | Dune Canyon | 2.5 km | wide, fast desert sweepers, rocks and cacti |
 | Frostbite Pass | 2.5 km | snowy mountain hairpins, fog, falling snow |
 | Grand Speedway | 1.9 km | huge 22 m wide oval with grandstands |
+| Highway One | 2.1 km | barely any turns: two huge straights (*sunset* look) |
+| Salt Flats | 2.7 km | barely any turns: enormous 26 m wide bowl (*dunes* look) |
+| Glacier Oval | 2.0 km | barely any turns: wide frozen oval (*frost* look) |
+| Dockside Drag | 2.3 km | barely any turns: long straights, one lazy kink each (*neon* look) |
+| Tri-Oval | 2.6 km | barely any turns: wide rounded triangle (*speedway* look) |
+| Coastal Sweep | 2.5 km | a few long, smooth curves (*sunset* look) |
+| Teardrop Valley | 1.8 km | big sweeper into a tightening funnel (*dunes* look) |
+| The D | 2.1 km | fast D shape, wiggle on the back straight (*speedway* look) |
+| Downtown L | 2.1 km | L-shaped city blocks, hard 90s (*sunset* look) |
+| Four Leaf | 2.9 km | four flowing lobes (*sunset* look) |
+| Boomerang | 3.0 km | fast V with a tight elbow (*dunes* look) |
+| Paperclip | 3.0 km | three straights joined by hairpins (*speedway* look) |
+| Crosstown | 2.6 km | T-shaped street circuit, 8 corners (*neon* look) |
+| Labyrinth | 3.4 km | street maze, nearly all corners (*neon* look) |
+| Starburst | 2.5 km | five spiky points, ten bends (*neon* look) |
+| Cobra | 3.2 km | snaking hairpin stack, long straight home (*dunes* look) |
+| Avalanche Run | 2.3 km | diamond with two tight hairpins (*frost* look) |
+| Fjord | 2.7 km | relentless twisty coast road (*frost* look) |
+| Alpine Esses | 3.3 km | rows of S-bends (*frost* look) |
+| Chicane Alley | 3.2 km | wall-to-wall chicanes (*speedway* look) |
+
+The 20 newer maps reuse the five existing looks with brand-new track layouts; they range from near-straight ovals to turn-heavy mazes.
 
 **Minimap** (top-left): *Follow* (rotating, zooms out with speed), *Full track*, or off. Press **M**, click it, or use Settings.
 

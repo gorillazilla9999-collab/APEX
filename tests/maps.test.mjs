@@ -8,7 +8,7 @@ const KNOWN_PROPS = ['water', 'containers', 'cranes', 'dunes', 'rocks', 'cacti',
 
 assert.equal(new Set(MAP_IDS).size, MAPS.length, 'unique ids');
 assert.ok(isMap(DEFAULT_MAP) && !isMap('nope') && !isMap(undefined) && getMap('nope').id === MAPS[0].id);
-assert.ok(MAPS.length >= 5, 'at least 5 maps');
+assert.ok(MAPS.length >= 25, 'at least 25 maps');
 
 for (const m of MAPS) {
   const th = m.theme, tag = `[${m.id}]`;
