@@ -8,6 +8,20 @@ npm test       # physics, room logic and socket wiring checks (no network needed
 
 **Controls:** W accelerate · S brake/reverse · A/D steer · SPACE handbrake · SHIFT nitro · R reset · M minimap · ESC pause
 
+## Cars
+Pick one with the **Car** button on the main menu (remembered; other players see your car's shape online).
+
+| Car | Speed | Accel | Turn | Brake | Character |
+|---|---|---|---|---|---|
+| Apex GT | 6 | 6 | 6 | 6 | the all-rounder |
+| Velocity | 9 | 5 | 6 | 5 | top speed, wins on the Speedway |
+| Blaze | 5 | 8 | 6 | 4 | explosive launch, long stopping distance |
+| Zenith | 5 | 5 | 9 | 3 | sharpest in corners, wins on Frostbite Pass |
+| Bulldog | 6 | 6 | 6 | 8 | shortest stopping distance, very stable |
+| Phantom | 7 | 5 | 7 | 5 | fast and nimble, soft on launch and brakes |
+
+**Balance:** stat points are not equal-sum; instead `tests/cars.test.mjs` runs an AI driver through the real vehicle physics on every map and requires the mean lap times of all cars to stay within 1.2% of each other (currently about 0.6%). Each car is fastest somewhere and slowest somewhere else. `node tests/balance.mjs` prints the full lap-time table. To add a car, add an entry to `public/js/vehicle/cars.js`, then re-run the tests and nudge its stats until the spread is small.
+
 ## Maps
 Pick one with the **Map** button on the main menu (your choice is remembered).
 
@@ -41,7 +55,7 @@ Run a single instance: rooms live in server memory.
 ## Structure
 - `server/` – Express static host, `rooms.js` (pure room/validation logic), `sockets.js` (Socket.IO wiring + 20 Hz snapshots)
 - `public/js/physics/` – pure-JS vehicle model + collision (no Three.js, unit-testable)
-- `public/js/vehicle/` – car mesh, `RemoteCar` (interpolated networked cars), smoke
+- `public/js/vehicle/` – `cars.js` (car catalogue + stat→physics scaling, shared with the server), car mesh, `RemoteCar` (interpolated networked cars), smoke
 - `public/js/world/` – `maps.js` (map catalogue, shared with the server), track, procedural scenery (`World.js`, `Scenery.js`), canvas textures
 - `public/js/core/` – input, camera rig, audio, settings, UI, `Network` (join/leave/state sync, auto-rejoin), `Minimap.js` + `minimapMath.js`
 - `public/js/main.js` – game loop and state machine (menu / playing / paused)

@@ -5,10 +5,10 @@ const ARC_SPEED = 603 * 0.75, ARC_RPM = 515 * 0.75, MAX_KMH = 300;
 
 export class UI {
   /** maps = [{ def, track }] for the map-select screen. */
-  constructor(settings, cb, maps = []) {
+  constructor(settings, cb, maps = [], cars = []) {
     const $ = (this.$ = (id) => document.getElementById(id));
     this.settings = settings; this.cb = cb; this.current = 'menu'; this.from = 'menu';
-    this.screens = { menu: $('menu'), maps: $('maps'), settings: $('settings'), controls: $('controls'), pause: $('pause') };
+    this.screens = { menu: $('menu'), maps: $('maps'), cars: $('cars'), settings: $('settings'), controls: $('controls'), pause: $('pause') };
     this.mapId = null;
     this.hud = $('hud'); this.last = {};
 
@@ -28,7 +28,9 @@ export class UI {
     $('btn-hud-pause').onclick = () => cb.onPause();
     $('btn-settings').onclick = $('btn-pause-settings').onclick = () => this.open('settings');
     $('btn-controls').onclick = $('btn-pause-controls').onclick = () => this.open('controls');
-    $('btn-settings-back').onclick = $('btn-controls-back').onclick = $('btn-maps-back').onclick = () => this.back();
+    $('btn-settings-back').onclick = $('btn-controls-back').onclick = $('btn-maps-back').onclick = $('btn-cars-back').onclick = () => this.back();
+    $('btn-car').onclick = () => this.open('cars');
+    this._buildCarCards(cars);
     $('btn-map').onclick = () => this.open('maps');
     this._buildMapCards(maps);
 
@@ -59,6 +61,26 @@ export class UI {
       card.onclick = () => this.cb.onSelectMap(def.id);
       grid.append(card); this.cards.set(def.id, card);
     }
+  }
+  _buildCarCards(cars) {
+    const grid = this.$('car-grid'); this.carCards = new Map();
+    const el = (tag, cls, text) => { const e = document.createElement(tag); e.className = cls; if (text != null) e.textContent = text; return e; };
+    for (const def of cars) {
+      const card = el('button', 'map-card car-card'); card.type = 'button';
+      const head = el('div', 'car-head'), sw = el('i', 'swatch'); sw.style.background = '#' + def.color.toString(16).padStart(6, '0');
+      head.append(sw, el('div', 'map-name', def.name));
+      card.append(head, el('div', 'map-tag', def.tag));
+      for (const [k, label] of [['speed', 'SPEED'], ['accel', 'ACCEL'], ['turn', 'TURN'], ['brake', 'BRAKE']]) {
+        const row = el('div', 'stat'), bar = el('div', 'bar2'), fill = document.createElement('i'); fill.style.width = def.stats[k] * 10 + '%';
+        bar.append(fill); row.append(el('span', '', label), bar); card.append(row);
+      }
+      card.onclick = () => this.cb.onSelectCar(def.id);
+      grid.append(card); this.carCards.set(def.id, card);
+    }
+  }
+  setCar(def) {
+    this.$('car-name').textContent = def.name;
+    for (const [id, card] of this.carCards) card.classList.toggle('sel', id === def.id);
   }
   /** Reflect the loaded map in the menu button and the selection screen. */
   setMap(def) {

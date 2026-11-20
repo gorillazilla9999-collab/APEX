@@ -40,4 +40,10 @@ assert.equal(p1.room.map, 'dunes'); assert.equal(p2.room.map, 'dunes'); assert.e
 assert.equal(M.join('x1', 'X', 'bad1', 1, '../../etc').room.map, 'sunset'); assert.equal(M.join('x2', 'X', 'bad2', 1).room.map, 'sunset');
 assert.equal(M.join('x3', 'X', 'bad3', 1, { toString() { return 'neon'; } }).room.map, 'sunset', 'non-string map ignored');
 assert.ok(![...M.rooms.keys()].some((k) => k === 'PUBLIC'), 'public lobbies are keyed per map');
+// ---- cars ----
+const C = new Rooms();
+assert.equal(C.join('c1', 'A', 'cars', 1, 'sunset', 'blaze').player.car, 'blaze');
+assert.equal(C.join('c2', 'B', 'cars', 1, 'sunset', 'nope').player.car, 'apex'); assert.equal(C.join('c3', 'C', 'cars', 1, 'sunset').player.car, 'apex');
+assert.equal(C.join('c4', 'D', 'cars', 1, 'sunset', { x: 1 }).player.car, 'apex');
+assert.deepEqual(C.list(C.roomOf('c1')).map((p) => p.car), ['blaze', 'apex', 'apex', 'apex'], 'roster carries each driver\'s car');
 console.log('rooms tests passed');

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CarModel } from './CarModel.js';
+import { getCar } from './cars.js';
 import { angleDiff, damp } from '../utils.js';
 
 const DELAY = 0.12; // render remote cars this many seconds in the past so we always have two snapshots to blend
@@ -16,9 +17,9 @@ function makeTag(text) {
 
 /** A networked player's car: buffers snapshots and plays them back smoothly. */
 export class RemoteCar {
-  constructor(scene, { id, name, color }) {
+  constructor(scene, { id, name, color, car }) {
     this.id = id; this.scene = scene; this.name = name; this.color = color;
-    this.car = new CarModel({ color, beams: false });
+    this.car = new CarModel({ color, beams: false, style: getCar(car).style });
     this.tag = makeTag(name); this.car.root.add(this.tag);
     scene.add(this.car.root); this.car.root.visible = false;
     this.buf = []; // {t (local seconds), x, z, h, vx, vz, st, yr, f}

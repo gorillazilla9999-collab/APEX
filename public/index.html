@@ -43,11 +43,22 @@
     <p class="tag">3D RACING · MULTIPLAYER</p>
     <label class="field">Driver name<input id="in-name" maxlength="14" placeholder="Driver" autocomplete="off" spellcheck="false"></label>
     <label class="field">Room code <small>blank = public room</small><input id="in-room" maxlength="8" placeholder="PUBLIC" autocomplete="off" spellcheck="false"></label>
+    <button id="btn-car" class="btn map-btn">Car <span id="car-name">APEX GT</span></button>
     <button id="btn-map" class="btn map-btn">Map <span id="map-name">SUNSET CIRCUIT</span></button>
     <button id="btn-play" class="btn primary">Play</button>
     <button id="btn-settings" class="btn">Settings</button>
     <button id="btn-controls" class="btn">Controls</button>
     <div id="net" class="net">○ CONNECTING…</div>
+  </div>
+</div>
+
+<!-- Car select -->
+<div id="cars" class="screen hidden">
+  <div class="panel maps">
+    <h2>Select Car</h2>
+    <div id="car-grid" class="map-grid"></div>
+    <p class="note">Every car is tuned to the same overall lap time: more speed, grip or braking always costs you somewhere else.</p>
+    <button id="btn-cars-back" class="btn primary">Done</button>
   </div>
 </div>
 

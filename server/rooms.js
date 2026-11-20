@@ -1,6 +1,7 @@
 // Pure room/player logic (no socket.io dependency) so it can be unit-tested headlessly.
 // Map ids come from the same catalogue the client renders from (plain data, no Three.js).
 import { DEFAULT_MAP, isMap } from '../public/js/world/maps.js';
+import { DEFAULT_CAR, isCar } from '../public/js/vehicle/cars.js';
 
 export const MAX_PER_ROOM = 12;
 export const DEFAULT_ROOM = 'PUBLIC';
@@ -20,7 +21,7 @@ export class Rooms {
    * A room's map is fixed by whoever creates it; later joiners get that map whatever they asked for.
    * Blank / "PUBLIC" means the public room *of the requested map*, so each map has its own public lobby.
    */
-  join(id, name, roomCode, now = Date.now(), mapId = DEFAULT_MAP) {
+  join(id, name, roomCode, now = Date.now(), mapId = DEFAULT_MAP, carId = DEFAULT_CAR) {
     this.leave(id);
     const typed = cleanRoom(roomCode), pub = typed === DEFAULT_ROOM, want = isMap(mapId) ? mapId : DEFAULT_MAP;
     const code = pub ? `${DEFAULT_ROOM}~${want.toUpperCase()}` : typed; // '~' can never be typed, so no clash with private codes
@@ -29,7 +30,7 @@ export class Rooms {
     if (room.players.size >= MAX_PER_ROOM) return { error: 'ROOM FULL' };
     const used = new Set([...room.players.values()].map((p) => p.slot));
     let slot = 0; while (used.has(slot)) slot++;
-    const player = { id, name: cleanName(name), slot, color: COLORS[slot % COLORS.length], state: null, last: now, lastAccepted: 0 };
+    const player = { id, name: cleanName(name), slot, color: COLORS[slot % COLORS.length], car: isCar(carId) ? carId : DEFAULT_CAR, state: null, last: now, lastAccepted: 0 };
     room.players.set(id, player); this.byPlayer.set(id, code);
     return { room, player, players: this.list(room) };
   }
@@ -44,7 +45,7 @@ export class Rooms {
   }
 
   roomOf(id) { return this.rooms.get(this.byPlayer.get(id)); }
-  list(room) { return [...room.players.values()].map(({ id, name, slot, color }) => ({ id, name, slot, color })); }
+  list(room) { return [...room.players.values()].map(({ id, name, slot, color, car }) => ({ id, name, slot, color, car })); }
 
   /** Validate and store a client-reported state. Returns true if accepted. */
   update(id, s, now = Date.now()) {

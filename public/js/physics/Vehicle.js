@@ -11,7 +11,10 @@ export const TUNING = {
 const SHIFT_UP = [14, 26, 38, 49, 59, 100]; // upper speed (m/s) of gears 1..6
 
 export class Vehicle {
-  constructor() { this.reset(0, 0, 0); }
+  /** `tuning` = TUNING scaled per car (see vehicle/cars.js). */
+  constructor(tuning = TUNING) { this.setTuning(tuning); this.reset(0, 0, 0); }
+
+  setTuning(t) { this.T = t; this.SU = SHIFT_UP.map((v) => v * (t.topSpeed / TUNING.topSpeed)); }
 
   reset(x, z, heading) {
     Object.assign(this, {
@@ -26,7 +29,7 @@ export class Vehicle {
   get speedKmh() { return this.speed * 3.6; }
 
   update(dt, inp, onGrass = false) {
-    const T = TUNING;
+    const T = this.T, SU = this.SU;
     this.onGrass = onGrass;
     this.heading += this.yawRate * dt;
     const h = this.heading;
@@ -57,10 +60,10 @@ export class Vehicle {
 
     // --- Gearbox / rpm ---
     const s = Math.abs(vF);
-    while (this.gear < 6 && s > SHIFT_UP[this.gear - 1]) this.gear++;
-    while (this.gear > 1 && s < SHIFT_UP[this.gear - 2] * 0.82) this.gear--;
-    const lo = this.gear > 1 ? SHIFT_UP[this.gear - 2] * 0.78 : 0;
-    const frac = clamp((s - lo) / (SHIFT_UP[this.gear - 1] - lo), 0, 1);
+    while (this.gear < 6 && s > SU[this.gear - 1]) this.gear++;
+    while (this.gear > 1 && s < SU[this.gear - 2] * 0.82) this.gear--;
+    const lo = this.gear > 1 ? SU[this.gear - 2] * 0.78 : 0;
+    const frac = clamp((s - lo) / (SU[this.gear - 1] - lo), 0, 1);
     let rpmTarget = 1100 + frac * 6300;
     if (this.gear === 1) rpmTarget = Math.max(rpmTarget, 1100 + throttle * 2600);
     this.rpm = damp(this.rpm, rpmTarget, 22, dt);

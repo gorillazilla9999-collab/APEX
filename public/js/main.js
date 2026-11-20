@@ -5,6 +5,7 @@ import { World } from './world/World.js';
 import { Track } from './world/Track.js';
 import { MAPS, DEFAULT_MAP, getMap, isMap } from './world/maps.js';
 import { CarModel } from './vehicle/CarModel.js';
+import { CARS, DEFAULT_CAR, getCar, isCar, tuningFor } from './vehicle/cars.js';
 import { RemoteCar } from './vehicle/RemoteCar.js';
 import { Smoke } from './vehicle/Smoke.js';
 import { Input } from './core/Input.js';
@@ -31,7 +32,7 @@ const tracks = new Map(MAPS.map((m) => [m.id, new Track(m)]));
 let world = null, envTarget = null;
 
 const vehicle = new Vehicle();
-const car = new CarModel(); scene.add(car.root);
+let car = null, carDef = null; // built by loadCar() once the UI exists
 const smoke = new Smoke(scene);
 const rig = new CameraRig(camera);
 const input = new Input();
@@ -96,6 +97,16 @@ function cycleMinimap() {
   if (state === 'playing') ui.toast('MINIMAP: ' + MINI_NAMES[next]);
 }
 
+/** Swap the player's car: new body model + new physics tuning. Returns false if it is already selected. */
+function loadCar(id) {
+  const def = getCar(id);
+  if (carDef?.id === def.id) return false;
+  if (car) car.dispose();
+  carDef = def; car = new CarModel({ color: def.color, style: def.style }); scene.add(car.root);
+  vehicle.setTuning(tuningFor(def)); ui.setCar(def); car.update(STEP, vehicle);
+  return true;
+}
+
 // ---- game flow ----
 function resetVehicle(toast = true) {
   const near = world.track.nearest(vehicle.x, vehicle.z), p = world.track.pose(near.i);
@@ -124,7 +135,7 @@ const ui = new UI(settings, {
       joining = true;
       try {
         const { name, room } = ui.identity();
-        const res = await net.join(name, room, world.map.id);
+        const res = await net.join(name, room, world.map.id, carDef.id);
         if (res.map && loadMap(res.map)) notice = `ROOM MAP: ${world.map.name}`; // an existing room decides the map
         syncRoster(res.players); slot = res.you.slot;
         setModeLabel(`ONLINE · ROOM ${res.room}`);
@@ -133,6 +144,11 @@ const ui = new UI(settings, {
     } else setModeLabel('TEST DRIVE');
     spawnAtStart(slot); rig.snap(vehicle); setState('playing');
     if (notice) ui.toast(notice, 2200);
+  },
+  onSelectCar(id) {
+    if (!isCar(id)) return;
+    try { localStorage.setItem('apexdrive.car', id); } catch { /* storage unavailable */ }
+    loadCar(id);
   },
   onSelectMap(id) {
     if (!isMap(id)) return;
@@ -143,7 +159,7 @@ const ui = new UI(settings, {
   onPause() { if (state === 'playing') setState('paused'); },
   onReset() { resetVehicle(); if (state === 'paused') setState('playing'); },
   onQuit() { net.leave(); clearRemotes(); setModeLabel('TEST DRIVE'); spawnAtStart(); setState('menu'); },
-}, MAPS.map((def) => ({ def, track: tracks.get(def.id) })));
+}, MAPS.map((def) => ({ def, track: tracks.get(def.id) })), CARS);
 const minimap = new Minimap(document.getElementById('minimap'));
 minimap.c.onclick = () => cycleMinimap();
 input.onPress('Escape', () => {
@@ -245,8 +261,9 @@ function frame(now) {
   if (composer && settings.get('bloom')) composer.render(); else renderer.render(scene, camera);
 }
 
-let savedMap = null;
-try { savedMap = localStorage.getItem('apexdrive.map'); } catch { /* storage unavailable */ }
+let savedMap = null, savedCar = null;
+try { savedMap = localStorage.getItem('apexdrive.map'); savedCar = localStorage.getItem('apexdrive.car'); } catch { /* storage unavailable */ }
+loadCar(isCar(savedCar) ? savedCar : DEFAULT_CAR);
 loadMap(isMap(savedMap) ? savedMap : DEFAULT_MAP);
 minimap.setMode(settings.get('minimap'));
 applySettings();

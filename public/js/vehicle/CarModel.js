@@ -19,8 +19,13 @@ function profile(pts, width, bev) {
 }
 
 export class CarModel {
-  /** opts.color: paint colour; opts.beams: headlight spotlights (disable for remote cars - they are costly). */
-  constructor({ color = 0xc8101e, beams = true } = {}) {
+  /**
+   * opts.color: paint colour; opts.beams: headlight spotlights (disable for remote cars - they are costly);
+   * opts.style: body shape from cars.js { len, hs, ws, wing, stripe } (length / height / width scale, rear wing size, livery stripe).
+   */
+  constructor({ color = 0xc8101e, beams = true, style = {} } = {}) {
+    const { len = 1, hs = 1, ws = 1, wing = 1, stripe = null } = style;
+    const HY = (y) => (y > 0.5 ? 0.46 + (y - 0.46) * hs : y); // squash / stretch everything above the sills
     this.root = new THREE.Group();
     this.body = new THREE.Group();
     this.root.add(this.body);
@@ -34,21 +39,24 @@ export class CarModel {
     const head = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xcfe6ff, emissiveIntensity: 4 });
     this.tailMat = new THREE.MeshStandardMaterial({ color: 0x300000, emissive: 0xff0a14, emissiveIntensity: 1.2 });
     const add = (geo, mat, x, y, z, rx = 0, ry = 0, parent = this.body) => {
-      const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, 0); parent.add(m); return m;
+      const m = new THREE.Mesh(geo, mat); m.position.set(x * ws, HY(y), z * len); m.rotation.set(rx, ry, 0); parent.add(m); return m;
     };
+    const P = (pts) => pts.map(([z, y]) => [z * len, HY(y)]);
     const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
 
     // body + cabin
-    add(profile([[-2.15, 0.46], [-2.15, 0.9], [-1.7, 0.98], [-1.2, 1.0], [0.9, 0.98], [1.55, 0.9], [2.1, 0.7], [2.14, 0.5]], 1.86, 0.07), paint, 0, 0, 0);
-    add(profile([[-1.2, 0.98], [-0.8, 1.46], [0.45, 1.46], [1.0, 0.98]], 1.55, 0.03), glass, 0, 0, 0);
-    add(box(1.45, 0.05, 1.2), paint, 0, 1.5, -0.17);
+    add(profile(P([[-2.15, 0.46], [-2.15, 0.9], [-1.7, 0.98], [-1.2, 1.0], [0.9, 0.98], [1.55, 0.9], [2.1, 0.7], [2.14, 0.5]]), 1.86 * ws, 0.07), paint, 0, 0, 0);
+    add(profile(P([[-1.2, 0.98], [-0.8, 1.46], [0.45, 1.46], [1.0, 0.98]]), 1.55 * ws, 0.03), glass, 0, 0, 0);
+    add(box(1.45 * 1, 0.05, 1.2), paint, 0, 1.5, -0.17);
     for (const s of [-1, 1]) {
       add(box(0.07, 0.06, 0.73), paint, s * 0.77, 1.24, 0.725, 0.72);   // A pillars
       add(box(0.09, 0.06, 0.66), paint, s * 0.76, 1.24, -1.025, -0.82); // C pillars
       add(box(0.1, 0.12, 2.3), dark, s * 0.96, 0.46, 0.1);              // side skirts
       add(box(0.2, 0.12, 0.12), paint, s * 1.0, 1.12, 0.55);            // mirrors
-      add(box(0.05, 0.2, 0.46), dark, s * 0.86, 1.34, -2.0);            // wing end plates
-      add(box(0.06, 0.3, 0.1), dark, s * 0.6, 1.1, -1.95);              // wing stands
+      if (wing > 0) {
+        add(box(0.05, 0.2, 0.46), dark, s * 0.86, 1.34 + (wing - 1) * 0.2, -2.0);   // wing end plates
+        add(box(0.06, 0.3, 0.1), dark, s * 0.6, 1.1 + (wing - 1) * 0.2, -1.95);     // wing stands
+      }
       add(box(0.55, 0.1, 0.1), head, s * 0.66, 0.62, 2.19);             // headlights
       add(box(0.3, 0.05, 0.08), head, s * 0.66, 0.5, 2.2);              // DRL
       add(box(0.5, 0.1, 0.06), this.tailMat, s * 0.62, 0.78, -2.24);    // tail lights
@@ -57,7 +65,12 @@ export class CarModel {
     add(box(1.9, 0.05, 0.4), dark, 0, 0.42, 2.25);                      // splitter
     add(box(1.0, 0.18, 0.05), dark, 0, 0.58, 2.27);                     // grille
     add(box(1.6, 0.14, 0.4), dark, 0, 0.5, -2.15);                      // diffuser
-    add(box(1.75, 0.05, 0.44), dark, 0, 1.3, -2.0, 0.08);               // wing
+    if (wing > 0) add(box(1.75, 0.05, 0.44), dark, 0, 1.3 + (wing - 1) * 0.2, -2.0, 0.08); // wing
+    else add(box(1.5, 0.05, 0.3), paint, 0, 1.0, -2.0, 0.12);           // ducktail lip
+    if (stripe != null) { // livery stripe: bonnet, roof, boot lid
+      const st = new THREE.MeshStandardMaterial({ color: stripe, roughness: 0.35, metalness: 0.3 });
+      add(box(0.34, 0.012, 0.75), st, 0, 1.0, 1.25, 0.06); add(box(0.34, 0.012, 1.15), st, 0, 1.53, -0.17); add(box(0.34, 0.012, 0.7), st, 0, 1.0, -1.55, -0.04);
+    }
     add(box(0.4, 0.04, 0.8), dark, 0, 1.02, 1.1);                       // bonnet vent
     add(box(0.55, 0.06, 0.06), this.tailMat, 0, 0.78, -2.25);           // centre tail strip
     this.body.traverse((o) => { if (o.isMesh) o.castShadow = true; });
@@ -83,7 +96,7 @@ export class CarModel {
     const caliper = new THREE.MeshStandardMaterial({ color: 0xd01010, roughness: 0.4 });
     this.wheels = [];
     for (const [sx, z, front] of [[-1, 1.4, true], [1, 1.4, true], [-1, -1.35, false], [1, -1.35, false]]) {
-      const pivot = new THREE.Group(); pivot.position.set(sx * 0.93, R, z);
+      const pivot = new THREE.Group(); pivot.position.set(sx * 0.93 * ws, R, z * len);
       const spin = new THREE.Group(); pivot.add(spin);
       spin.add(new THREE.Mesh(new THREE.CylinderGeometry(R, R, W, 28).rotateZ(Math.PI / 2), tireMat));
       spin.add(new THREE.Mesh(new THREE.CylinderGeometry(R * 0.68, R * 0.68, W * 0.9, 24).rotateZ(Math.PI / 2), rimMat));
@@ -95,7 +108,7 @@ export class CarModel {
       }
       const cal = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.12, 0.2), caliper); cal.position.set(-sx * 0.04, R * 0.38, 0); pivot.add(cal);
       const arch = new THREE.Mesh(new THREE.TorusGeometry(R + 0.09, 0.045, 8, 20, Math.PI).rotateY(Math.PI / 2), dark);
-      arch.position.set(sx * 0.93, R, z); this.body.add(arch);
+      arch.position.set(sx * 0.93 * ws, R, z * len); this.body.add(arch);
       pivot.traverse((o) => { if (o.isMesh) o.castShadow = true; });
       this.root.add(pivot); this.wheels.push({ pivot, spin, front });
     }
