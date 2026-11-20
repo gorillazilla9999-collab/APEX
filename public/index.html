@@ -18,8 +18,9 @@
 <div id="hud" class="hidden">
   <div class="hud-tl"><div class="brand">APEX<span>DRIVE</span></div><div class="mode" id="mode">TEST DRIVE</div></div>
   <button id="btn-hud-pause" class="chip-btn" title="Pause (Esc)">❚❚ PAUSE</button>
+  <canvas id="minimap" class="minimap round" width="200" height="200" title="Minimap: click or press M to change view"></canvas>
   <div class="hud-bl">
-    <div class="keys"><b>W</b> Accelerate <b>S</b> Brake <b>A/D</b> Steer <b>SPACE</b> Handbrake <b>SHIFT</b> Nitro</div>
+    <div class="keys"><b>W</b> Accelerate <b>S</b> Brake <b>A/D</b> Steer <b>SPACE</b> Handbrake <b>SHIFT</b> Nitro <b>M</b> Minimap</div>
     <button id="btn-hud-reset" class="chip-btn">↺ RESET VEHICLE <small>R</small></button>
   </div>
   <div id="drift" class="drift">DRIFT</div>
@@ -42,10 +43,21 @@
     <p class="tag">3D RACING · MULTIPLAYER</p>
     <label class="field">Driver name<input id="in-name" maxlength="14" placeholder="Driver" autocomplete="off" spellcheck="false"></label>
     <label class="field">Room code <small>blank = public room</small><input id="in-room" maxlength="8" placeholder="PUBLIC" autocomplete="off" spellcheck="false"></label>
+    <button id="btn-map" class="btn map-btn">Map <span id="map-name">SUNSET CIRCUIT</span></button>
     <button id="btn-play" class="btn primary">Play</button>
     <button id="btn-settings" class="btn">Settings</button>
     <button id="btn-controls" class="btn">Controls</button>
     <div id="net" class="net">○ CONNECTING…</div>
+  </div>
+</div>
+
+<!-- Map select -->
+<div id="maps" class="screen hidden">
+  <div class="panel maps">
+    <h2>Select Map</h2>
+    <div id="map-grid" class="map-grid"></div>
+    <p class="note">Joining a room that already exists always uses that room's map. Blank room code = public room for the map you picked.</p>
+    <button id="btn-maps-back" class="btn primary">Done</button>
   </div>
 </div>
 
@@ -57,6 +69,8 @@
     <label class="row">Engine volume <span id="set-volume-val"></span><input id="set-volume" type="range" min="0" max="100"></label>
     <label class="row">Graphics quality
       <select id="set-quality"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+    <label class="row">Minimap
+      <select id="set-minimap"><option value="follow">Follow car</option><option value="full">Full track</option><option value="off">Off</option></select></label>
     <label class="row">Shadows <input id="set-shadows" type="checkbox"></label>
     <label class="row">Bloom glow <input id="set-bloom" type="checkbox"></label>
     <label class="row">Camera shake <input id="set-shake" type="checkbox"></label>
@@ -70,7 +84,7 @@
     <h2>Controls</h2>
     <ul class="ctl">
       <li><b>W</b> Accelerate</li><li><b>S</b> Brake / Reverse</li><li><b>A</b> <b>D</b> Steer</li>
-      <li><b>SPACE</b> Handbrake (drift)</li><li><b>SHIFT</b> Nitro</li><li><b>R</b> Reset vehicle</li><li><b>ESC</b> Pause</li>
+      <li><b>SPACE</b> Handbrake (drift)</li><li><b>SHIFT</b> Nitro</li><li><b>R</b> Reset vehicle</li><li><b>M</b> Minimap: follow / full track / off</li><li><b>ESC</b> Pause</li>
     </ul>
     <button id="btn-controls-back" class="btn primary">Back</button>
   </div>

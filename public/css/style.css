@@ -71,3 +71,23 @@ b{display:inline-block;min-width:26px;padding:3px 8px;background:#fff;color:#111
 .players .p.me{border-left:2px solid var(--accent)}
 .players i{width:9px;height:9px;border-radius:50%;flex:none}
 .players span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.players b{margin-left:auto;color:var(--mute);font-variant-numeric:tabular-nums;font-weight:600}
+
+/* minimap */
+.minimap{position:absolute;left:28px;top:84px;width:200px;height:200px;pointer-events:auto;cursor:pointer;filter:drop-shadow(0 4px 10px rgba(0,0,0,.55))}
+@media (max-width:700px){.minimap{width:128px;height:128px;left:14px;top:76px}}
+
+/* map select */
+.map-btn{display:flex;justify-content:space-between;gap:12px}
+.map-btn span{color:var(--accent);letter-spacing:.12em;font-size:12px;align-self:center;white-space:nowrap}
+.panel.maps{width:min(780px,100%);max-height:100vh;overflow-y:auto;padding:18px 6px 18px 0}
+.map-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.map-card{appearance:none;cursor:pointer;color:var(--ink);text-align:left;font:inherit;background:rgba(255,255,255,.06);border:2px solid transparent;padding:8px 8px 12px;display:flex;flex-direction:column;gap:6px;transition:.15s}
+.map-card:hover{background:rgba(255,255,255,.13)}
+.map-card.sel{border-color:var(--accent);background:rgba(255,42,42,.14)}
+.map-card:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.map-card canvas{width:100%;height:auto;aspect-ratio:16/9;display:block;background:#111}
+.map-name{font-weight:900;font-style:italic;letter-spacing:.1em;font-size:15px;padding:0 4px}
+.map-tag{color:var(--mute);font-size:12px;line-height:1.35;padding:0 4px;min-height:32px}
+.map-meta{display:flex;justify-content:space-between;font-size:11px;letter-spacing:.14em;font-weight:700;color:var(--mute);padding:0 4px}
+.map-meta .dots{color:var(--accent);letter-spacing:.2em}
+.note{margin:4px 0;color:var(--mute);font-size:12px;line-height:1.4}

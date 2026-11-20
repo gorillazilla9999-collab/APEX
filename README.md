@@ -6,11 +6,26 @@ npm start      # http://localhost:3000  (open it in two tabs to test multiplayer
 npm test       # physics, room logic and socket wiring checks (no network needed)
 ```
 
-**Controls:** W accelerate · S brake/reverse · A/D steer · SPACE handbrake · SHIFT nitro · R reset · ESC pause
+**Controls:** W accelerate · S brake/reverse · A/D steer · SPACE handbrake · SHIFT nitro · R reset · M minimap · ESC pause
+
+## Maps
+Pick one with the **Map** button on the main menu (your choice is remembered).
+
+| Map | Length | Feel |
+|---|---|---|
+| Sunset Circuit | 2.0 km | the original golden-hour city loop |
+| Neon Harbor | 1.9 km | night street circuit, container stacks, cranes, neon |
+| Dune Canyon | 2.5 km | wide, fast desert sweepers, rocks and cacti |
+| Frostbite Pass | 2.5 km | snowy mountain hairpins, fog, falling snow |
+| Grand Speedway | 1.9 km | huge 22 m wide oval with grandstands |
+
+**Minimap** (top-left): *Follow* (rotating, zooms out with speed), *Full track*, or off. Press **M**, click it, or use Settings.
+
+**Adding a map:** add an entry to `public/js/world/maps.js` (control points + theme + props). The menu, minimap, server validation and `npm test` (track radius / self-clearance checks) pick it up automatically. New props go in `world/Scenery.js`.
 
 ## Multiplayer
-Enter a driver name and an optional room code on the menu, then press Play. Everyone using the same code shares a track
-(blank = the public room, up to 12 drivers per room). Each client runs its own physics and sends its car state 20×/s;
+Enter a driver name and an optional room code on the menu, then press Play. Everyone using the same code shares a track.
+A room uses the map of whoever created it; joiners are switched to it. Blank code = the public room of the map you picked (each map has its own). Up to 12 drivers per room. Each client runs its own physics and sends its car state 20×/s;
 the server validates it, and broadcasts 20 snapshots/s per room. Remote cars are drawn ~120 ms in the past and interpolated.
 Other cars are "ghosts" (no car-to-car collisions yet).
 
@@ -27,6 +42,6 @@ Run a single instance: rooms live in server memory.
 - `server/` – Express static host, `rooms.js` (pure room/validation logic), `sockets.js` (Socket.IO wiring + 20 Hz snapshots)
 - `public/js/physics/` – pure-JS vehicle model + collision (no Three.js, unit-testable)
 - `public/js/vehicle/` – car mesh, `RemoteCar` (interpolated networked cars), smoke
-- `public/js/world/` – track, procedural scenery, canvas textures
-- `public/js/core/` – input, camera rig, audio, settings, UI, `Network` (join/leave/state sync, auto-rejoin)
+- `public/js/world/` – `maps.js` (map catalogue, shared with the server), track, procedural scenery (`World.js`, `Scenery.js`), canvas textures
+- `public/js/core/` – input, camera rig, audio, settings, UI, `Network` (join/leave/state sync, auto-rejoin), `Minimap.js` + `minimapMath.js`
 - `public/js/main.js` – game loop and state machine (menu / playing / paused)

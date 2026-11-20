@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { Vehicle } from './physics/Vehicle.js';
 import { collideVehicle } from './physics/Collision.js';
-import { World, HORIZON } from './world/World.js';
+import { World } from './world/World.js';
+import { Track } from './world/Track.js';
+import { MAPS, DEFAULT_MAP, getMap, isMap } from './world/maps.js';
 import { CarModel } from './vehicle/CarModel.js';
 import { RemoteCar } from './vehicle/RemoteCar.js';
 import { Smoke } from './vehicle/Smoke.js';
@@ -11,7 +13,7 @@ import { Settings } from './core/Settings.js';
 import { GameAudio } from './core/Audio.js';
 import { Network } from './core/Network.js';
 import { UI } from './core/UI.js';
-import { ROAD_WIDTH } from './world/Track.js';
+import { Minimap } from './core/Minimap.js';
 
 const STEP = 1 / 120, PIXEL_RATIO = { low: 1, medium: 1.5, high: 2 };
 const settings = new Settings();
@@ -21,12 +23,12 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(HORIZON, 120, 1100);
 const camera = new THREE.PerspectiveCamera(70, 1, 0.3, 2600);
 
-const world = new World(); scene.add(world.group);
-const envScene = new THREE.Scene(); envScene.add(new THREE.Mesh(world.skyMesh.geometry, world.skyMesh.material));
-scene.environment = new THREE.PMREMGenerator(renderer).fromScene(envScene, 0.02, 0.1, 3000).texture;
+// ---- maps: tracks are cheap to build, so all of them exist up front (menu thumbnails + minimap); a World is built per selected map ----
+const pmrem = new THREE.PMREMGenerator(renderer);
+const tracks = new Map(MAPS.map((m) => [m.id, new Track(m)]));
+let world = null, envTarget = null;
 
 const vehicle = new Vehicle();
 const car = new CarModel(); scene.add(car.root);
@@ -64,11 +66,35 @@ function applyShadows() {
   scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); // recompile with/without shadow maps
 }
 function applySettings() { applyShadows(); audio.setVolume(settings.get('volume') / 100); resize(); }
-settings.onChange((k) => {
+settings.onChange((k, v) => {
   if (k === 'volume') audio.setVolume(settings.get('volume') / 100);
   else if (k === 'shadows') applyShadows();
   else if (k === 'quality') resize();
+  else if (k === 'minimap') minimap.setMode(v);
 });
+
+/** Swap the whole environment (world, sky, fog, lighting, reflections, minimap). Returns false if that map is already loaded. */
+function loadMap(id) {
+  const def = getMap(id);
+  if (world?.map.id === def.id) return false;
+  if (world) { scene.remove(world.group); world.dispose(); }
+  world = new World(def, tracks.get(def.id)); scene.add(world.group);
+  scene.fog = new THREE.Fog(world.horizon, def.theme.fog[0], def.theme.fog[1]);
+  renderer.toneMappingExposure = def.theme.exposure;
+  const envScene = new THREE.Scene(); envScene.add(new THREE.Mesh(world.skyMesh.geometry, world.skyMesh.material));
+  envTarget?.dispose(); envTarget = pmrem.fromScene(envScene, 0.02, 0.1, 3000); scene.environment = envTarget.texture;
+  world.sun.castShadow = settings.get('shadows');
+  minimap.setMap(def, world.track); ui.setMap(def); setModeLabel(modeBase);
+  return true;
+}
+let modeBase = 'TEST DRIVE';
+function setModeLabel(text) { modeBase = text; ui.setMode(`${text} · ${world.map.name}`); }
+const MINI_MODES = ['follow', 'full', 'off'], MINI_NAMES = { follow: 'FOLLOW CAR', full: 'FULL TRACK', off: 'OFF' };
+function cycleMinimap() {
+  const next = MINI_MODES[(MINI_MODES.indexOf(settings.get('minimap')) + 1) % MINI_MODES.length];
+  settings.set('minimap', next);
+  if (state === 'playing') ui.toast('MINIMAP: ' + MINI_NAMES[next]);
+}
 
 // ---- game flow ----
 function resetVehicle(toast = true) {
@@ -78,7 +104,7 @@ function resetVehicle(toast = true) {
 }
 /** Online players get staggered grid slots (2 abreast, ~11 m apart) so nobody spawns inside anybody else. */
 function spawnAtStart(slot = -1) {
-  const t = world.track, i = slot < 0 ? 0 : (((-slot * 4) % t.n) + t.n) % t.n, p = t.pose(i);
+  const t = world.track, gap = Math.max(1, Math.round(11 / t.ds)), i = slot < 0 ? 0 : (((-slot * gap) % t.n) + t.n) % t.n, p = t.pose(i);
   const off = slot < 0 ? 0 : (slot % 2 ? 3.2 : -3.2);
   vehicle.reset(p.x - t.tz[i] * off, p.z + t.tx[i] * off, p.heading); car.update(STEP, vehicle);
 }
@@ -91,31 +117,42 @@ let joining = false;
 const ui = new UI(settings, {
   async onPlay() {
     if (joining) return;
+    let notice = '';
     audio.start(); // inside the click handler, before any await, so the browser lets audio start
     let slot = -1;
     if (net.connected) {
       joining = true;
       try {
         const { name, room } = ui.identity();
-        const res = await net.join(name, room);
+        const res = await net.join(name, room, world.map.id);
+        if (res.map && loadMap(res.map)) notice = `ROOM MAP: ${world.map.name}`; // an existing room decides the map
         syncRoster(res.players); slot = res.you.slot;
-        ui.setMode(`ONLINE · ROOM ${res.room}`);
+        setModeLabel(`ONLINE · ROOM ${res.room}`);
       } catch (e) { joining = false; ui.flashNet(`✕ ${e}`); return; }
       joining = false;
-    } else ui.setMode('TEST DRIVE');
+    } else setModeLabel('TEST DRIVE');
     spawnAtStart(slot); rig.snap(vehicle); setState('playing');
+    if (notice) ui.toast(notice, 2200);
+  },
+  onSelectMap(id) {
+    if (!isMap(id)) return;
+    try { localStorage.setItem('apexdrive.map', id); } catch { /* storage unavailable */ }
+    if (loadMap(id)) { spawnAtStart(); rig.snap(vehicle); }
   },
   onResume() { setState('playing'); },
   onPause() { if (state === 'playing') setState('paused'); },
   onReset() { resetVehicle(); if (state === 'paused') setState('playing'); },
-  onQuit() { net.leave(); clearRemotes(); ui.setMode('TEST DRIVE'); spawnAtStart(); setState('menu'); },
-});
+  onQuit() { net.leave(); clearRemotes(); setModeLabel('TEST DRIVE'); spawnAtStart(); setState('menu'); },
+}, MAPS.map((def) => ({ def, track: tracks.get(def.id) })));
+const minimap = new Minimap(document.getElementById('minimap'));
+minimap.c.onclick = () => cycleMinimap();
 input.onPress('Escape', () => {
   if (state === 'playing') setState('paused');
   else if (state === 'paused') (ui.current === 'pause' ? setState('playing') : ui.back());
   else if (ui.current !== 'menu') ui.back();
 });
 input.onPress('KeyR', () => { if (state === 'playing') resetVehicle(); });
+input.onPress('KeyM', () => { if (state === 'playing') cycleMinimap(); });
 // ---- multiplayer ----
 const remotes = new Map(); // socket id -> RemoteCar
 const clock = () => performance.now() / 1000;
@@ -132,7 +169,11 @@ const net = new Network((s) => ui.setNet(s))
   .on('room:left', ({ id }) => { const r = remotes.get(id); if (r && state !== 'menu') ui.toast(`${r.name} LEFT`); removeRemote(id); })
   .on('room:snapshot', ({ players }) => { const now = clock(); for (const p of players) remotes.get(p.id)?.push(p, now); })
   .on('disconnected', () => { clearRemotes(); if (state !== 'menu') ui.toast('CONNECTION LOST'); })
-  .on('rejoined', (res) => { syncRoster(res.players); if (state !== 'menu') ui.toast('RECONNECTED'); })
+  .on('rejoined', (res) => {
+    if (res.map && loadMap(res.map)) { clearRemotes(); spawnAtStart(res.you.slot); rig.snap(vehicle); if (state !== 'menu') ui.toast(`ROOM MAP: ${world.map.name}`, 2200); }
+    else if (state !== 'menu') ui.toast('RECONNECTED');
+    syncRoster(res.players); setModeLabel(`ONLINE · ROOM ${res.room}`);
+  })
   .on('kicked', () => { clearRemotes(); if (state !== 'menu') ui.toast('COULD NOT REJOIN ROOM'); });
 
 let sendAcc = 0, rosterAcc = 0;
@@ -181,7 +222,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min((now - last) / 1000, 0.1); last = now;
   if (state === 'playing') {
-    onGrass = world.track.nearest(vehicle.x, vehicle.z).dist > ROAD_WIDTH / 2 + 1.2;
+    onGrass = world.track.nearest(vehicle.x, vehicle.z).dist > world.roadWidth / 2 + 1.2;
     for (acc += dt; acc >= STEP; acc -= STEP) simulate(STEP);
     car.update(dt, vehicle); emitEffects(dt, vehicle);
     rig.update(dt, vehicle, settings.get('fov'), settings.get('shake'));
@@ -199,12 +240,17 @@ function frame(now) {
   }
   sendState(dt);
   smoke.update(dt);
-  world.update(tmp.set(vehicle.x, 0, vehicle.z), camera.position);
+  if (state !== 'menu') minimap.draw(vehicle, [...remotes.values()].filter((r) => r.car.root.visible).map((r) => ({ x: r.v.x, z: r.v.z, color: r.color })), dt);
+  world.update(tmp.set(vehicle.x, 0, vehicle.z), camera.position, dt);
   if (composer && settings.get('bloom')) composer.render(); else renderer.render(scene, camera);
 }
 
+let savedMap = null;
+try { savedMap = localStorage.getItem('apexdrive.map'); } catch { /* storage unavailable */ }
+loadMap(isMap(savedMap) ? savedMap : DEFAULT_MAP);
+minimap.setMode(settings.get('minimap'));
 applySettings();
 spawnAtStart();
 ui.hideLoading();
 requestAnimationFrame(frame);
-window.__apex = { vehicle, world, renderer, setState, get state() { return state; } }; // debug handle
+window.__apex = { vehicle, renderer, setState, loadMap, get world() { return world; }, get state() { return state; } }; // debug handle

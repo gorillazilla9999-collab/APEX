@@ -19,15 +19,15 @@ export class Network {
     const t = performance.now();
     this.socket.emit('client:ping', t, () => this.onStatus({ online: true, ping: Math.round(performance.now() - t) }));
   }
-  /** Resolves { id, room, you, players } or rejects with an error string. */
-  join(name, room) {
+  /** Resolves { id, room, map, you, players } or rejects with an error string. `map` = the room's map, which may differ from the one asked for. */
+  join(name, room, map) {
     return new Promise((resolve, reject) => {
       if (!this.connected) return reject('OFFLINE');
       const t = setTimeout(() => reject('TIMEOUT'), 5000);
-      this.socket.emit('room:join', { name, room }, (res) => {
+      this.socket.emit('room:join', { name, room, map }, (res) => {
         clearTimeout(t);
         if (!res || res.error) return reject(res?.error || 'JOIN FAILED');
-        this.session = { name, room }; this.id = res.id; this.room = res.room; this.you = res.you;
+        this.session = { name, room, map: res.map || map }; this.id = res.id; this.room = res.room; this.you = res.you;
         resolve(res);
       });
     });
@@ -35,7 +35,7 @@ export class Network {
   /** After a dropped connection the server forgot us: join again and let the game resync. */
   _rejoin() {
     if (!this.session) return;
-    this.join(this.session.name, this.session.room).then((res) => this.emit('rejoined', res), () => { this.session = null; this.emit('kicked'); });
+    this.join(this.session.name, this.session.room, this.session.map).then((res) => this.emit('rejoined', res), () => { this.session = null; this.emit('kicked'); });
   }
   leave() { this.session = null; this.room = null; if (this.connected) this.socket.emit('room:leave'); }
   sendState(s) { if (this.connected && this.session) this.socket.volatile.emit('player:state', s); }

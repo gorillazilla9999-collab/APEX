@@ -1,4 +1,7 @@
 // Pure room/player logic (no socket.io dependency) so it can be unit-tested headlessly.
+// Map ids come from the same catalogue the client renders from (plain data, no Three.js).
+import { DEFAULT_MAP, isMap } from '../public/js/world/maps.js';
+
 export const MAX_PER_ROOM = 12;
 export const DEFAULT_ROOM = 'PUBLIC';
 export const COLORS = [0xc8101e, 0x1e6bff, 0xf2b705, 0x16a34a, 0xff6a00, 0x9333ea, 0x00c2c7, 0xe11d8f, 0xf4f4f4, 0x2b2f38, 0x84cc16, 0x8b5a2b];
@@ -12,12 +15,17 @@ const r2 = (v) => Math.round(v * 100) / 100;
 export class Rooms {
   constructor() { this.rooms = new Map(); this.byPlayer = new Map(); }
 
-  /** Add a player; returns { error } or { room, player, players }. */
-  join(id, name, roomCode, now = Date.now()) {
+  /**
+   * Add a player; returns { error } or { room, player, players }.
+   * A room's map is fixed by whoever creates it; later joiners get that map whatever they asked for.
+   * Blank / "PUBLIC" means the public room *of the requested map*, so each map has its own public lobby.
+   */
+  join(id, name, roomCode, now = Date.now(), mapId = DEFAULT_MAP) {
     this.leave(id);
-    const code = cleanRoom(roomCode);
+    const typed = cleanRoom(roomCode), pub = typed === DEFAULT_ROOM, want = isMap(mapId) ? mapId : DEFAULT_MAP;
+    const code = pub ? `${DEFAULT_ROOM}~${want.toUpperCase()}` : typed; // '~' can never be typed, so no clash with private codes
     let room = this.rooms.get(code);
-    if (!room) this.rooms.set(code, (room = { code, players: new Map() }));
+    if (!room) this.rooms.set(code, (room = { code, label: pub ? DEFAULT_ROOM : typed, map: want, players: new Map() }));
     if (room.players.size >= MAX_PER_ROOM) return { error: 'ROOM FULL' };
     const used = new Set([...room.players.values()].map((p) => p.slot));
     let slot = 0; while (used.has(slot)) slot++;

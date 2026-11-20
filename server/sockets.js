@@ -11,12 +11,12 @@ export function registerSockets(io) {
 
     socket.on('room:join', (req, ack) => {
       if (typeof ack !== 'function') return;
-      const res = rooms.join(socket.id, req?.name, req?.room);
+      const res = rooms.join(socket.id, req?.name, req?.room, Date.now(), req?.map);
       if (res.error) return ack({ error: res.error });
       const prev = [...socket.rooms].filter((r) => r !== socket.id); prev.forEach((r) => socket.leave(r));
       socket.join(res.room.code);
       socket.to(res.room.code).emit('room:joined', { id: socket.id, name: res.player.name, slot: res.player.slot, color: res.player.color });
-      ack({ id: socket.id, room: res.room.code, you: { slot: res.player.slot, color: res.player.color, name: res.player.name }, players: res.players });
+      ack({ id: socket.id, room: res.room.label, map: res.room.map, you: { slot: res.player.slot, color: res.player.color, name: res.player.name }, players: res.players });
     });
 
     const leave = () => {

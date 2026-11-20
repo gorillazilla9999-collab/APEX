@@ -18,9 +18,10 @@ function connect(id) {
 registerSockets(io);
 const a = connect('A'), b = connect('B');
 let ackA, ackB;
-a.h['room:join']({ name: 'Alice', room: 'x1' }, (r) => (ackA = r));
-b.h['room:join']({ name: 'Bob', room: 'X1' }, (r) => (ackB = r));
-assert.equal(ackA.room, 'X1'); assert.equal(ackB.players.length, 2); assert.equal(ackB.you.slot, 1);
+a.h['room:join']({ name: 'Alice', room: 'x1', map: 'neon' }, (r) => (ackA = r));
+b.h['room:join']({ name: 'Bob', room: 'X1', map: 'frost' }, (r) => (ackB = r));
+assert.equal(ackA.room, 'X1'); assert.equal(ackA.map, 'neon'); assert.equal(ackB.map, 'neon', 'joiner gets the room\'s map, not the one asked for');
+assert.equal(ackB.players.length, 2); assert.equal(ackB.you.slot, 1);
 assert.ok(a.got.some(([e, d]) => e === 'room:joined' && d.id === 'B' && d.name === 'Bob'), 'Alice told about Bob');
 a.h['player:state']({ x: 1, z: 2, h: 0, vx: 0, vz: 0, st: 0, yr: 0, f: 0 });
 b.h['player:state']({ x: 5, z: 6, h: 0, vx: 0, vz: 0, st: 0, yr: 0, f: 4 });

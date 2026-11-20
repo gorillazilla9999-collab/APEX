@@ -26,4 +26,18 @@ for (let i = 0; i < MAX_PER_ROOM; i++) assert.ok(!R.join('p' + i, 'P', 'full').e
 assert.equal(R.join('extra', 'X', 'full').error, 'ROOM FULL');
 // rejoining another room moves the player
 R.join('p0', 'P', 'other'); assert.equal(R.roomOf('p0').code, 'OTHER'); assert.equal(R.roomOf('p1').players.size, MAX_PER_ROOM - 1);
+
+// ---- maps ----
+const M = new Rooms();
+let n1 = M.join('n1', 'N', '', 1, 'neon'), s1 = M.join('s1', 'S', '', 1, 'sunset'), n2 = M.join('n2', 'N2', 'PUBLIC', 1, 'neon');
+assert.equal(n1.room.map, 'neon'); assert.equal(s1.room.map, 'sunset'); assert.equal(n1.room.label, 'PUBLIC');
+assert.equal(n2.room, n1.room, 'public lobby is per map'); assert.notEqual(s1.room, n1.room);
+assert.equal(M.rooms.size, 2);
+// a private room keeps the map of whoever created it
+let p1 = M.join('p1', 'P', 'garage', 1, 'dunes'), p2 = M.join('p2', 'Q', 'GARAGE', 1, 'frost');
+assert.equal(p1.room.map, 'dunes'); assert.equal(p2.room.map, 'dunes'); assert.equal(p2.room, p1.room);
+// bad / missing map ids fall back to the default; a private code can't collide with a public lobby
+assert.equal(M.join('x1', 'X', 'bad1', 1, '../../etc').room.map, 'sunset'); assert.equal(M.join('x2', 'X', 'bad2', 1).room.map, 'sunset');
+assert.equal(M.join('x3', 'X', 'bad3', 1, { toString() { return 'neon'; } }).room.map, 'sunset', 'non-string map ignored');
+assert.ok(![...M.rooms.keys()].some((k) => k === 'PUBLIC'), 'public lobbies are keyed per map');
 console.log('rooms tests passed');
