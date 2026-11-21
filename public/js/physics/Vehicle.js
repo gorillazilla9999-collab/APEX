@@ -8,7 +8,7 @@ export const TUNING = {
   maxSteer: 0.62, steerFalloff: 25, latGrip: 22, grip: 12, handbrakeGrip: 1.0,
   scrub: 0.22, nitroDuration: 4.5, nitroRecharge: 12,
 };
-const SHIFT_UP = [14, 26, 38, 49, 59, 100]; // upper speed (m/s) of gears 1..6
+export const SHIFT_UP = [14, 26, 38, 49, 59, 100]; // upper speed (m/s) of gears 1..6
 
 export class Vehicle {
   /** `tuning` = TUNING scaled per car (see vehicle/cars.js). */

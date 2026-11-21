@@ -41,6 +41,9 @@ b{display:inline-block;min-width:26px;padding:3px 8px;background:#fff;color:#111
 .chip-btn{appearance:none;cursor:pointer;color:var(--ink);background:rgba(8,9,12,.6);border:1px solid rgba(255,255,255,.2);padding:9px 14px;font:700 12px inherit;letter-spacing:.15em;backdrop-filter:blur(6px)}
 .chip-btn:hover{border-color:var(--accent);background:rgba(255,42,42,.25)}.chip-btn small{opacity:.6;margin-left:6px}
 #btn-hud-pause{position:absolute;right:28px;top:22px}
+.perf{display:flex;gap:12px;margin-top:8px;font:700 12px/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.08em;text-shadow:0 1px 3px #000}
+.perf.hidden{display:none}.perf span{color:var(--mute)}
+.perf .good{color:#3ddc84}.perf .ok{color:#ffd23f}.perf .bad{color:#ff4d4d}
 .hud-bl{position:absolute;left:28px;bottom:26px;display:flex;flex-direction:column;gap:10px;align-items:flex-start}
 .keys{font-size:12px;color:var(--mute);display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;max-width:520px;text-shadow:0 1px 3px #000}
 .keys b{margin-left:6px}
@@ -99,3 +102,41 @@ b{display:inline-block;min-width:26px;padding:3px 8px;background:#fff;color:#111
 .stat{display:grid;grid-template-columns:54px 1fr;align-items:center;gap:8px;padding:0 4px;font-size:10px;letter-spacing:.14em;font-weight:700;color:var(--mute)}
 .stat .bar2{height:7px;background:rgba(255,255,255,.1);transform:skewX(-20deg);overflow:hidden}
 .stat .bar2 i{display:block;height:100%;background:linear-gradient(90deg,#fff,var(--accent))}
+
+.btn-row{display:flex;gap:12px}.btn-row .btn{flex:1;padding-right:12px}
+.panel.lobby{width:min(460px,100%);max-height:100vh;overflow-y:auto;padding:14px 6px 14px 0}
+.code-row{display:flex;align-items:center;gap:12px;font-size:11px;letter-spacing:.25em;font-weight:700;color:var(--mute)}
+.code-row strong{font-size:28px;letter-spacing:.3em;color:var(--ink);font-style:italic}.code-row .chip-btn{margin-left:auto}
+.roster{display:flex;flex-direction:column;gap:3px;max-height:26vh;overflow-y:auto}
+.roster .p{display:flex;align-items:center;gap:10px;padding:7px 12px;background:rgba(255,255,255,.07);font-size:13px;font-weight:700;letter-spacing:.08em}
+.roster .p.me{border-left:3px solid var(--accent)}.roster i{width:10px;height:10px;border-radius:50%;flex:none}
+.roster small{margin-left:auto;color:var(--mute);letter-spacing:.14em;font-size:10px;text-transform:uppercase}
+.roster .crown{color:#ffd23f;font-size:10px;letter-spacing:.2em}
+.lobby-set{display:flex;flex-direction:column;gap:2px}
+.step{margin-left:auto;display:flex;align-items:center;gap:10px}
+.row .step span{margin:0;min-width:30px;text-align:center;color:var(--ink);font-size:16px}
+.step .chip-btn{padding:6px 12px;font-size:16px}
+.lobby.guest .lobby-set .chip-btn,.lobby.guest .lobby-set input{pointer-events:none;opacity:.35}
+.lobby.guest #btn-lobby-map{pointer-events:none;opacity:.6}
+.res-table{display:flex;flex-direction:column;gap:3px}
+.res-row{display:grid;grid-template-columns:34px 1fr 100px 100px;align-items:center;gap:10px;padding:9px 12px;background:rgba(255,255,255,.07);font-weight:700;font-size:14px;letter-spacing:.06em}
+.res-row.head{background:none;color:var(--mute);font-size:10px;letter-spacing:.2em;padding-bottom:2px}
+.res-row.me{border-left:3px solid var(--accent);background:rgba(255,42,42,.15)}.res-row.first .pl{color:#ffd23f}
+.res-row .pl{font-style:italic;font-weight:900;font-size:18px}.res-row .nm{display:flex;align-items:center;gap:8px;overflow:hidden}
+.res-row .nm i{width:10px;height:10px;border-radius:50%;flex:none}.res-row .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res-row .t{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink)}.res-row .t.dim{color:var(--mute)}
+
+/* race HUD */
+.race{position:absolute;left:50%;top:16px;transform:translateX(-50%);display:grid;grid-template-columns:auto auto;gap:2px 18px;align-items:center;text-shadow:0 2px 6px #000;font-style:italic;font-weight:900}
+.race .r-pos{grid-row:1/3;display:flex;align-items:baseline;gap:4px}.r-pos span{font-size:58px;line-height:1}.r-pos small{font-size:20px;color:var(--mute);font-style:normal}
+.r-lap{font-size:15px;letter-spacing:.2em;color:var(--mute)}.r-lap span{color:var(--ink);font-size:22px}.r-lap small{font-size:13px;font-style:normal}
+.r-time{font:800 22px/1 ui-monospace,Menlo,Consolas,monospace;font-style:normal;letter-spacing:.04em;grid-column:2}
+.r-split{grid-column:1/3;display:flex;justify-content:center;gap:18px;font:700 12px/1 ui-monospace,Menlo,Consolas,monospace;font-style:normal;color:var(--mute);letter-spacing:.06em;margin-top:4px}
+.r-gap{grid-column:1/3;text-align:center;font:800 15px/1 ui-monospace,Menlo,Consolas,monospace;font-style:normal;color:#ff6b6b;min-height:15px}
+.countdown{position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);font-size:min(30vw,190px);font-weight:900;font-style:italic;color:#fff;text-shadow:0 0 40px var(--accent),0 4px 14px #000;opacity:0;pointer-events:none}
+.countdown.on{opacity:1;animation:cd .9s ease-out}.countdown.go{color:#3ddc84;text-shadow:0 0 40px #3ddc84,0 4px 14px #000}
+@keyframes cd{from{transform:translate(-50%,-50%) scale(1.5);opacity:0}25%{opacity:1}to{transform:translate(-50%,-50%) scale(1)}}
+.wrongway{position:absolute;left:50%;top:22%;transform:translateX(-50%);padding:10px 26px;background:rgba(220,30,30,.85);font-weight:900;font-style:italic;letter-spacing:.25em;font-size:26px;opacity:0;transition:opacity .15s}.wrongway.on{opacity:1}
+.finish{position:absolute;left:50%;top:26%;transform:translateX(-50%);text-align:center;font-weight:900;font-style:italic;letter-spacing:.1em;font-size:56px;text-shadow:0 0 30px var(--accent),0 4px 14px #000;opacity:0;transition:opacity .3s;pointer-events:none}.finish.on{opacity:1}.finish small{display:block;font-size:16px;letter-spacing:.3em;color:var(--mute)}
+.players .p em{font-style:italic;font-weight:900;min-width:16px;color:var(--mute)}.players .p.me em{color:var(--ink)}.players .gap{margin-left:auto;color:var(--mute);font-variant-numeric:tabular-nums;font-weight:600;font-size:11px}
+@media (max-width:700px){.r-pos span{font-size:40px}.r-time{font-size:16px}.race{top:8px}}

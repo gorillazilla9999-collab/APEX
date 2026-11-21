@@ -18,6 +18,8 @@ assert.ok(R.update('b', { ...good, x: 20 }, 1000));
 const snap = R.snapshot(R.roomOf('a'), 1500);
 assert.equal(snap.length, 2); assert.equal(snap[0].x, 10.12); assert.equal(snap[0].away, 0);
 assert.equal(R.snapshot(R.roomOf('a'), 20000)[0].away, 1, 'stale players flagged away');
+assert.ok(R.update('a', { ...good, ts: 123456.4 }, 5000)); assert.equal(R.snapshot(R.roomOf('a'), 5100)[0].ts, 123456, 'sender timestamp relayed');
+assert.ok(!R.update('a', { ...good, ts: 'x' }, 6000) === false, 'bad ts ignored, state still accepted'); assert.equal(R.snapshot(R.roomOf('a'), 6100)[0].ts, undefined);
 
 // slot reuse after leave, room cleanup, full room
 R.leave('a'); assert.equal(R.join('c', 'Cy', 'race1').player.slot, 0);

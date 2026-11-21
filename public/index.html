@@ -16,7 +16,7 @@
 
 <!-- HUD -->
 <div id="hud" class="hidden">
-  <div class="hud-tl"><div class="brand">APEX<span>DRIVE</span></div><div class="mode" id="mode">TEST DRIVE</div></div>
+  <div class="hud-tl"><div class="brand">APEX<span>DRIVE</span></div><div class="mode" id="mode">TEST DRIVE</div><div class="perf" id="perf"><span id="perf-fps">-- FPS</span><span id="perf-ping">-- MS</span></div></div>
   <button id="btn-hud-pause" class="chip-btn" title="Pause (Esc)">❚❚ PAUSE</button>
   <canvas id="minimap" class="minimap round" width="200" height="200" title="Minimap: click or press M to change view"></canvas>
   <div class="hud-bl">
@@ -32,6 +32,16 @@
     </svg>
     <div class="readout"><div id="hud-speed">0</div><div class="unit">KM/H</div><div class="gear"><span>GEAR</span><b id="hud-gear">N</b></div></div>
   </div>
+  <div id="race" class="race hidden">
+    <div class="r-pos"><span id="r-place">1</span><small id="r-of">/ 1</small></div>
+    <div class="r-lap">LAP <span id="r-lap">1</span><small id="r-laps">/ 3</small></div>
+    <div class="r-time" id="r-time">0:00.000</div>
+    <div class="r-split"><span id="r-last">LAST --</span><span id="r-best">BEST --</span></div>
+    <div class="r-gap" id="r-gap"></div>
+  </div>
+  <div id="countdown" class="countdown"></div>
+  <div id="wrongway" class="wrongway">WRONG WAY</div>
+  <div id="finish" class="finish"></div>
   <div id="players" class="players hidden"></div>
   <div id="toast" class="toast"></div>
 </div>
@@ -42,13 +52,56 @@
     <div class="brand huge">APEX<span>DRIVE</span></div>
     <p class="tag">3D RACING · MULTIPLAYER</p>
     <label class="field">Driver name<input id="in-name" maxlength="14" placeholder="Driver" autocomplete="off" spellcheck="false"></label>
-    <label class="field">Room code <small>blank = public room</small><input id="in-room" maxlength="8" placeholder="PUBLIC" autocomplete="off" spellcheck="false"></label>
     <button id="btn-car" class="btn map-btn">Car <span id="car-name">APEX GT</span></button>
     <button id="btn-map" class="btn map-btn">Map <span id="map-name">SUNSET CIRCUIT</span></button>
-    <button id="btn-play" class="btn primary">Play</button>
-    <button id="btn-settings" class="btn">Settings</button>
-    <button id="btn-controls" class="btn">Controls</button>
+    <button id="btn-multi" class="btn primary">Multiplayer Race</button>
+    <button id="btn-solo" class="btn">Solo Race</button>
+    <button id="btn-play" class="btn">Free Drive</button>
+    <div class="btn-row"><button id="btn-settings" class="btn">Settings</button><button id="btn-controls" class="btn">Controls</button></div>
     <div id="net" class="net">○ CONNECTING…</div>
+  </div>
+</div>
+
+<!-- Multiplayer -->
+<div id="multi" class="screen hidden">
+  <div class="panel">
+    <h2>Multiplayer</h2>
+    <label class="field">Room code <small>custom code to host, or the code to join</small><input id="in-room" maxlength="8" placeholder="e.g. FRIENDS" autocomplete="off" spellcheck="false"></label>
+    <button id="btn-host" class="btn primary">Host a race</button>
+    <button id="btn-join" class="btn">Join room</button>
+    <button id="btn-quick" class="btn">Quick play · public room</button>
+    <p id="multi-note" class="note">Hosting creates a room you control: you pick the map, laps and rules, then start the race. Leave the code blank for a random one.</p>
+    <button id="btn-multi-back" class="btn">Back</button>
+  </div>
+</div>
+
+<!-- Race lobby -->
+<div id="lobby" class="screen hidden">
+  <div class="panel lobby">
+    <h2 id="lobby-title">Race Lobby</h2>
+    <div id="lobby-code-row" class="code-row"><span>ROOM CODE</span><strong id="lobby-code">-----</strong><button id="btn-copy" class="chip-btn">COPY</button></div>
+    <div id="lobby-players" class="roster"></div>
+    <div class="lobby-set">
+      <button id="btn-lobby-map" class="btn map-btn">Map <span id="lobby-map">-</span></button>
+      <div class="row">Laps <div class="step"><button id="laps-dec" class="chip-btn" type="button">−</button><span id="lobby-laps">3</span><button id="laps-inc" class="chip-btn" type="button">+</button></div></div>
+      <label class="row">Nitro allowed <input id="lobby-nitro" type="checkbox"></label>
+      <div class="row">Max players <div class="step"><button id="max-dec" class="chip-btn" type="button">−</button><span id="lobby-max">12</span><button id="max-inc" class="chip-btn" type="button">+</button></div></div>
+    </div>
+    <button id="btn-car-lobby" class="btn map-btn">Car <span id="lobby-car">-</span></button>
+    <button id="btn-start" class="btn primary">Start race</button>
+    <p id="lobby-note" class="note"></p>
+    <button id="btn-lobby-leave" class="btn">Leave</button>
+  </div>
+</div>
+
+<!-- Results -->
+<div id="results" class="screen hidden dim">
+  <div class="panel wide results">
+    <h2>Race results</h2>
+    <div id="res-table" class="res-table"></div>
+    <p id="res-note" class="note"></p>
+    <button id="btn-res-lobby" class="btn primary">Back to lobby</button>
+    <button id="btn-res-leave" class="btn">Leave room</button>
   </div>
 </div>
 
@@ -67,7 +120,7 @@
   <div class="panel maps">
     <h2>Select Map</h2>
     <div id="map-grid" class="map-grid"></div>
-    <p class="note">Joining a room that already exists always uses that room's map. Blank room code = public room for the map you picked.</p>
+    <p class="note">In a race lobby only the host can change the map. Free Drive and Quick Play use the map you pick here.</p>
     <button id="btn-maps-back" class="btn primary">Done</button>
   </div>
 </div>
@@ -82,6 +135,7 @@
       <select id="set-quality"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
     <label class="row">Minimap
       <select id="set-minimap"><option value="follow">Follow car</option><option value="full">Full track</option><option value="off">Off</option></select></label>
+    <label class="row">Show FPS &amp; ping <input id="set-stats" type="checkbox"></label>
     <label class="row">Shadows <input id="set-shadows" type="checkbox"></label>
     <label class="row">Bloom glow <input id="set-bloom" type="checkbox"></label>
     <label class="row">Camera shake <input id="set-shake" type="checkbox"></label>

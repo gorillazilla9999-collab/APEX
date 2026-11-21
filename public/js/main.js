@@ -15,6 +15,9 @@ import { GameAudio } from './core/Audio.js';
 import { Network } from './core/Network.js';
 import { UI } from './core/UI.js';
 import { Minimap } from './core/Minimap.js';
+import { LocalLink } from './core/LocalLink.js';
+import { gridPose } from './race/RaceSession.js';
+import { fmtTime } from './race/format.js';
 
 const STEP = 1 / 120, PIXEL_RATIO = { low: 1, medium: 1.5, high: 2 };
 const settings = new Settings();
@@ -103,69 +106,137 @@ function loadCar(id) {
   if (carDef?.id === def.id) return false;
   if (car) car.dispose();
   carDef = def; car = new CarModel({ color: def.color, style: def.style }); scene.add(car.root);
-  vehicle.setTuning(tuningFor(def)); ui.setCar(def); car.update(STEP, vehicle);
+  vehicle.setTuning(tuningFor(def)); audio.setCar(def.id); ui.setCar(def); car.update(STEP, vehicle);
   return true;
 }
 
 // ---- game flow ----
 function resetVehicle(toast = true) {
+  if (race.active && race.locked) return; // no moving off the grid before the start
   const near = world.track.nearest(vehicle.x, vehicle.z), p = world.track.pose(near.i);
   vehicle.reset(p.x, p.z, p.heading); car.update(STEP, vehicle); rig.snap(vehicle);
   if (toast && state === 'playing') ui.toast('VEHICLE RESET');
 }
 /** Online players get staggered grid slots (2 abreast, ~11 m apart) so nobody spawns inside anybody else. */
 function spawnAtStart(slot = -1) {
-  const t = world.track, gap = Math.max(1, Math.round(11 / t.ds)), i = slot < 0 ? 0 : (((-slot * gap) % t.n) + t.n) % t.n, p = t.pose(i);
-  const off = slot < 0 ? 0 : (slot % 2 ? 3.2 : -3.2);
-  vehicle.reset(p.x - t.tz[i] * off, p.z + t.tx[i] * off, p.heading); car.update(STEP, vehicle);
+  const t = world.track;
+  if (slot < 0) { const p = t.pose(0); vehicle.reset(p.x, p.z, p.heading); }
+  else { const p = gridPose(t, slot); vehicle.reset(p.x, p.z, p.heading); }
+  car.update(STEP, vehicle);
 }
 function setState(next) {
   state = next;
   ui.showHud(next === 'playing' || next === 'paused');
-  if (next === 'playing') { ui.show(null); } else if (next === 'paused') { ui.show('pause'); audio.silence(); } else { ui.show('menu'); audio.silence(); }
+  if (next === 'playing') ui.show(null);
+  else if (next === 'paused') { ui.show('pause'); audio.silence(); }
+  else { ui.show(next); audio.silence(); } // 'menu' | 'lobby' | 'results'
 }
-let joining = false;
+
+// ---- racing: one "link" at a time = online room (Network) or solo race (LocalLink); both speak the same protocol ----
+const NEUTRAL = { throttle: false, brake: false, steer: 0, handbrake: false, nitro: false };
+const freshRace = () => ({ active: false, goAt: 0, laps: 3, nitro: true, rows: [], lapsDone: 0, finished: false, finishMs: 0, went: false, lastCount: null, wrong: 0, locked: false, resultRows: null });
+let joining = false, link = null, lobby = null, roomCode = null, race = freshRace(), drive = NEUTRAL;
+const local = new LocalLink((id) => tracks.get(id));
+const isHost = () => !!link && !!lobby && lobby.host === link.id;
+const who = (id) => lobby?.players.find((p) => p.id === id);
+const mapsList = MAPS.map((def) => ({ def, track: tracks.get(def.id) }));
+
+function leaveLink() { link?.leave(); link = null; lobby = null; roomCode = null; race = freshRace(); ui.raceHud(false); ui.setStandings([], 0); clearRemotes(); }
+function leaveRoom() { leaveLink(); setModeLabel('TEST DRIVE'); spawnAtStart(); rig.snap(vehicle); setState('menu'); }
+function backToLobby() {
+  race = freshRace(); ui.raceHud(false); ui.setStandings([], 0);
+  remotes.forEach((r) => r.reset()); spawnAtStart(); rig.snap(vehicle); setState('lobby');
+}
+function enterLobby(st) {
+  race = freshRace(); ui.raceHud(false); applyRoomState(st);
+  setModeLabel(roomCode === null ? 'SOLO RACE' : `RACE · ROOM ${roomCode}`);
+  spawnAtStart(); rig.snap(vehicle); setState('lobby');
+}
+/** The room's rules / roster changed (or we just joined). The host's map choice applies to everyone. */
+function applyRoomState(st) {
+  if (!link) return;
+  lobby = st;
+  if (st.settings.map !== world.map.id && loadMap(st.settings.map)) { spawnAtStart(); rig.snap(vehicle); }
+  if (link !== local) syncRoster(st.players);
+  ui.setLobby(st, link.id, roomCode, carDef.name);
+  if (state === 'results' && race.resultRows) ui.showResults(race.resultRows, link.id, isHost(), link === local);
+  if (st.phase === 'lobby' && (race.active || state === 'results' || state === 'playing' || state === 'paused')) backToLobby();
+}
+function onRaceStarted({ goAt, grid, settings }) {
+  if (!link || grid[link.id] == null) return;
+  if (settings.map !== world.map.id) loadMap(settings.map);
+  race = { ...freshRace(), active: true, goAt, laps: settings.laps, nitro: settings.nitro, locked: true };
+  remotes.forEach((r) => r.reset());
+  spawnAtStart(grid[link.id]); rig.snap(vehicle);
+  ui.raceHud(true, settings.nitro); ui.setStandings([], settings.laps); setState('playing');
+}
+function onRaceTick({ rows }) {
+  if (!link || !race.active) return;
+  race.rows = rows;
+  ui.setStandings(rows.map((r, i) => ({ place: i + 1, name: who(r[0])?.name ?? '?', color: who(r[0])?.color ?? 0xffffff, me: r[0] === link.id, lap: r[1], gap: r[3], done: r[2] > 0 })), race.laps);
+  const i = rows.findIndex((r) => r[0] === link.id); if (i < 0) return;
+  const me = rows[i];
+  if (me[1] > race.lapsDone) {
+    if (!race.finished && me[1] < race.laps) { ui.toast(`LAP ${me[1]} · ${fmtTime(me[4])}${me[4] === me[5] ? ' · BEST' : ''}`, 2200); audio.beep(880, 0.08); }
+    race.lapsDone = me[1];
+  }
+  if (me[2] > 0 && !race.finished) { race.finished = true; race.finishMs = me[2]; ui.finishBanner(i + 1, me[2]); audio.fanfare(); }
+}
+function onRaceResults({ rows }) {
+  if (!link || !race.active) return;
+  race.resultRows = rows.map((r) => ({ ...r, color: who(r.id)?.color ?? 0xffffff }));
+  ui.showResults(race.resultRows, link.id, isHost(), link === local);
+  ui.raceHud(false); ui.setStandings([], 0); setState('results');
+}
+const hooks = { 'room:state': applyRoomState, 'race:started': onRaceStarted, 'race:tick': onRaceTick, 'race:results': onRaceResults };
+
+async function joinOnline(mode, code) {
+  if (joining) return;
+  if (!net.connected) { ui.setMultiNote('SERVER OFFLINE · TRY A SOLO RACE'); return; }
+  audio.start(); joining = true; ui.setMultiNote('');
+  try {
+    const res = await net.join(ui.identity().name, code, world.map.id, carDef.id, mode);
+    if (link) link.leave();
+    clearRemotes(); link = net; roomCode = res.room;
+    enterLobby({ host: res.host, phase: res.phase, settings: res.settings, players: res.players });
+  } catch (e) { ui.setMultiNote('✕ ' + e); }
+  joining = false;
+}
+
 const ui = new UI(settings, {
-  async onPlay() {
-    if (joining) return;
-    let notice = '';
-    audio.start(); // inside the click handler, before any await, so the browser lets audio start
-    let slot = -1;
-    if (net.connected) {
-      joining = true;
-      try {
-        const { name, room } = ui.identity();
-        const res = await net.join(name, room, world.map.id, carDef.id);
-        if (res.map && loadMap(res.map)) notice = `ROOM MAP: ${world.map.name}`; // an existing room decides the map
-        syncRoster(res.players); slot = res.you.slot;
-        setModeLabel(`ONLINE · ROOM ${res.room}`);
-      } catch (e) { joining = false; ui.flashNet(`✕ ${e}`); return; }
-      joining = false;
-    } else setModeLabel('TEST DRIVE');
-    spawnAtStart(slot); rig.snap(vehicle); setState('playing');
-    if (notice) ui.toast(notice, 2200);
+  onFreeDrive() { audio.start(); leaveLink(); setModeLabel('TEST DRIVE'); spawnAtStart(); rig.snap(vehicle); setState('playing'); },
+  onSolo() {
+    audio.start(); leaveLink(); link = local; roomCode = null;
+    enterLobby(local.open({ name: ui.identity().name, car: carDef.id, color: carDef.color, map: world.map.id }));
   },
+  onHost: (code) => joinOnline('host', code), onJoin: (code) => joinOnline('join', code), onQuick: () => joinOnline('public', ''),
+  onLeave: leaveRoom, onQuit: leaveRoom,
+  onStartRace() { if (isHost()) link.startRace(); },
+  onBackToLobby() { if (isHost()) link.toLobby(); },
+  onSetup(patch) { if (isHost()) link.setup(patch); },
   onSelectCar(id) {
     if (!isCar(id)) return;
     try { localStorage.setItem('apexdrive.car', id); } catch { /* storage unavailable */ }
     loadCar(id);
+    if (link && state === 'lobby') { link.setCar(id); if (lobby) ui.setLobby(lobby, link.id, roomCode, carDef.name); }
   },
   onSelectMap(id) {
     if (!isMap(id)) return;
+    if (link) { if (isHost()) link.setup({ map: id }); return; } // inside a lobby only the host picks the map
     try { localStorage.setItem('apexdrive.map', id); } catch { /* storage unavailable */ }
     if (loadMap(id)) { spawnAtStart(); rig.snap(vehicle); }
   },
   onResume() { setState('playing'); },
   onPause() { if (state === 'playing') setState('paused'); },
   onReset() { resetVehicle(); if (state === 'paused') setState('playing'); },
-  onQuit() { net.leave(); clearRemotes(); setModeLabel('TEST DRIVE'); spawnAtStart(); setState('menu'); },
-}, MAPS.map((def) => ({ def, track: tracks.get(def.id) })), CARS);
+}, mapsList, CARS);
+ui.setNames(mapsList, CARS);
 const minimap = new Minimap(document.getElementById('minimap'));
 minimap.c.onclick = () => cycleMinimap();
 input.onPress('Escape', () => {
   if (state === 'playing') setState('paused');
   else if (state === 'paused') (ui.current === 'pause' ? setState('playing') : ui.back());
-  else if (ui.current !== 'menu') ui.back();
+  else if (['maps', 'cars', 'settings', 'controls', 'multi'].includes(ui.current)) ui.back();
 });
 input.onPress('KeyR', () => { if (state === 'playing') resetVehicle(); });
 input.onPress('KeyM', () => { if (state === 'playing') cycleMinimap(); });
@@ -173,42 +244,60 @@ input.onPress('KeyM', () => { if (state === 'playing') cycleMinimap(); });
 const remotes = new Map(); // socket id -> RemoteCar
 const clock = () => performance.now() / 1000;
 function addRemote(p) { if (p.id !== net.id && !remotes.has(p.id)) remotes.set(p.id, new RemoteCar(scene, p)); }
-function removeRemote(id) { remotes.get(id)?.dispose(); remotes.delete(id); }
+function removeRemote(id) { remotes.get(id)?.dispose(); remotes.delete(id); audio.removeRemote(id); }
 function clearRemotes() { [...remotes.keys()].forEach(removeRemote); }
-function syncRoster(players) {
-  const ids = new Set(players.map((p) => p.id));
-  for (const id of [...remotes.keys()]) if (!ids.has(id)) removeRemote(id);
+function syncRoster(players) { // add newcomers, drop leavers, rebuild cars whose owner switched model
+  for (const [id, r] of [...remotes]) { const p = players.find((q) => q.id === id); if (!p || p.car !== r.carId) removeRemote(id); }
   players.forEach(addRemote);
 }
 const net = new Network((s) => ui.setNet(s))
-  .on('room:joined', (p) => { addRemote(p); if (state !== 'menu') ui.toast(`${p.name} JOINED`); })
-  .on('room:left', ({ id }) => { const r = remotes.get(id); if (r && state !== 'menu') ui.toast(`${r.name} LEFT`); removeRemote(id); })
+  .on('room:joined', (p) => { if (link === net) { addRemote(p); if (state === 'playing') ui.toast(`${p.name} JOINED`); } })
+  .on('room:left', ({ id }) => { const r = remotes.get(id); if (r && state === 'playing') ui.toast(`${r.name} LEFT`); removeRemote(id); })
   .on('room:snapshot', ({ players }) => { const now = clock(); for (const p of players) remotes.get(p.id)?.push(p, now); })
-  .on('disconnected', () => { clearRemotes(); if (state !== 'menu') ui.toast('CONNECTION LOST'); })
-  .on('rejoined', (res) => {
-    if (res.map && loadMap(res.map)) { clearRemotes(); spawnAtStart(res.you.slot); rig.snap(vehicle); if (state !== 'menu') ui.toast(`ROOM MAP: ${world.map.name}`, 2200); }
-    else if (state !== 'menu') ui.toast('RECONNECTED');
-    syncRoster(res.players); setModeLabel(`ONLINE · ROOM ${res.room}`);
+  .on('disconnected', () => { clearRemotes(); if (link === net && state !== 'menu') ui.toast('CONNECTION LOST'); })
+  .on('rejoined', (res) => { // the server forgot us: we are back as a spectator in the same room, so show the lobby
+    if (link !== net) return;
+    roomCode = res.room; lobby = null;
+    applyRoomState({ host: res.host, phase: res.phase, settings: res.settings, players: res.players });
+    if (state !== 'lobby') backToLobby();
   })
-  .on('kicked', () => { clearRemotes(); if (state !== 'menu') ui.toast('COULD NOT REJOIN ROOM'); });
+  .on('kicked', () => { if (link === net) { leaveRoom(); ui.flashNet('✕ DISCONNECTED FROM ROOM'); } });
+for (const [ev, fn] of Object.entries(hooks)) { net.on(ev, (d) => link === net && fn(d)); local.on(ev, (d) => link === local && fn(d)); }
 
-let sendAcc = 0, rosterAcc = 0;
+let sendAcc = 0;
 function sendState(dt) {
-  if (!net.inRoom || state === 'menu') return;
-  rosterAcc += dt;
-  if (rosterAcc > 0.5) {
-    rosterAcc = 0;
-    const rows = [{ name: net.you?.name || 'You', color: net.you?.color ?? 0xc8101e, kmh: Math.round(vehicle.speedKmh), me: true }];
-    for (const r of remotes.values()) rows.push({ name: r.name, color: r.color, kmh: Math.round(r.v.speed * 3.6) });
-    ui.setPlayers(rows);
-  }
+  if (!link?.inRoom || (state !== 'playing' && state !== 'paused')) return;
   sendAcc += dt;
-  if (sendAcc < 0.05) return; // 20 Hz
+  if (sendAcc < 1 / 30) return; // 30 Hz
   sendAcc = 0;
   const v = vehicle, idle = state === 'paused';
-  net.sendState({
-    x: v.x, z: v.z, h: v.heading, vx: idle ? 0 : v.vx, vz: idle ? 0 : v.vz, st: v.steer, yr: idle ? 0 : v.yawRate,
+  link.sendState({
+    ts: Math.round(clock() * 1000), x: v.x, z: v.z, h: v.heading, vx: idle ? 0 : v.vx, vz: idle ? 0 : v.vz, st: v.steer, yr: idle ? 0 : v.yawRate,
     f: idle ? 0 : (v.braking ? 1 : 0) | (v.handbrake ? 2 : 0) | (v.nitroActive ? 4 : 0) | (v.sliding ? 8 : 0) | (v.onGrass ? 16 : 0),
+  });
+}
+
+/** Countdown, race clock, place / lap readout and wrong-way warning (runs every frame while driving). */
+function updateRace(dt, near) {
+  if (!race.active || !link) return;
+  const toGo = race.goAt - link.serverNow();
+  race.locked = toGo > 0;
+  if (race.locked) {
+    const c = Math.ceil(toGo / 1000);
+    if (c !== race.lastCount) { race.lastCount = c; ui.countdown(c); audio.beep(c <= 1 ? 740 : 520, 0.14); }
+  } else if (!race.went) { race.went = true; ui.countdown('GO!', true); audio.beep(1175, 0.45, 0.25); setTimeout(() => ui.countdown(null), 900); }
+
+  const t = world.track;
+  if (!race.locked && !race.finished && vehicle.speed > 6 && near.dist < world.roadWidth) {
+    const f = Math.sin(vehicle.heading) * t.tx[near.i] + Math.cos(vehicle.heading) * t.tz[near.i];
+    race.wrong = f < -0.35 ? Math.min(2, race.wrong + dt) : Math.max(0, race.wrong - dt * 2);
+  } else race.wrong = 0;
+  ui.wrongWay(race.wrong > 0.7);
+
+  const i = race.rows.findIndex((r) => r[0] === link.id), me = i >= 0 ? race.rows[i] : null;
+  ui.updateRace({
+    place: me ? i + 1 : 0, total: Math.max(1, race.rows.length || lobby?.players.filter((p) => !p.spec).length || 1), lap: me ? me[1] + 1 : 1, laps: race.laps,
+    ms: race.finished ? race.finishMs : race.locked ? 0 : link.serverNow() - race.goAt, last: me?.[4] ?? null, best: me?.[5] ?? null, gap: me?.[3] ?? null, done: race.finished,
   });
 }
 
@@ -216,8 +305,7 @@ function sendState(dt) {
 let onGrass = false;
 const fwd = new THREE.Vector3(), tmp = new THREE.Vector3();
 function simulate(dt) {
-  const inp = input.state;
-  vehicle.update(dt, inp, onGrass);
+  vehicle.update(dt, drive, onGrass);
   const impact = collideVehicle(vehicle, world.colliders);
   if (impact > 2.5) { rig.addShake(Math.min(1, impact / 25)); audio.impact(impact); car.bump(impact); }
 }
@@ -233,30 +321,42 @@ function emitEffects(dt, v) {
   }
 }
 
-let last = performance.now(), acc = 0;
+const listener = { x: 0, z: 0, fx: 0, fz: 1, vx: 0, vz: 0 };
+let last = performance.now(), acc = 0, fpsFrames = 0, fpsT = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
+  fpsFrames++;
+  if (now - fpsT >= 500) { ui.setFps(Math.round(fpsFrames * 1000 / (now - fpsT))); fpsFrames = 0; fpsT = now; }
   const dt = Math.min((now - last) / 1000, 0.1); last = now;
   if (state === 'playing') {
-    onGrass = world.track.nearest(vehicle.x, vehicle.z).dist > world.roadWidth / 2 + 1.2;
+    const near = world.track.nearest(vehicle.x, vehicle.z);
+    onGrass = near.dist > world.roadWidth / 2 + 1.2;
+    updateRace(dt, near);
+    const raw = input.state; // the countdown locks the controls; "no nitro" rooms mask the nitro key
+    drive = race.active && race.locked ? NEUTRAL : race.active && !race.nitro ? { ...raw, nitro: false } : raw;
     for (acc += dt; acc >= STEP; acc -= STEP) simulate(STEP);
     car.update(dt, vehicle); emitEffects(dt, vehicle);
     rig.update(dt, vehicle, settings.get('fov'), settings.get('shake'));
-    audio.update(vehicle, input.state.throttle);
+    audio.update(vehicle, drive.throttle);
     ui.updateHud(vehicle);
-  } else if (state === 'menu') {
+  } else if (state === 'menu' || state === 'lobby' || state === 'results') {
     car.update(dt, vehicle); rig.orbitAround(dt, vehicle);
   }
+  if (link === local) local.tick();
   if (remotes.size) {
-    const now = clock();
+    const now = clock(), hear = state === 'playing';
+    if (hear) { camera.getWorldDirection(tmp); const l = Math.hypot(tmp.x, tmp.z) || 1; listener.fx = tmp.x / l; listener.fz = tmp.z / l; listener.x = camera.position.x; listener.z = camera.position.z; listener.vx = vehicle.vx; listener.vz = vehicle.vz; }
+    else audio.silenceRemotes();
     for (const r of remotes.values()) {
       const rv = r.update(dt, now);
-      if (!r.away && Math.hypot(rv.x - camera.position.x, rv.z - camera.position.z) < 160) emitEffects(dt, rv);
+      if (state === 'menu' || state === 'lobby' || state === 'results') r.car.root.visible = false;
+      if (hear) audio.updateRemote(r.id, r.carId, rv, listener, r.away);
+      if (!r.away && r.car.root.visible && Math.hypot(rv.x - camera.position.x, rv.z - camera.position.z) < 160) emitEffects(dt, rv);
     }
   }
   sendState(dt);
   smoke.update(dt);
-  if (state !== 'menu') minimap.draw(vehicle, [...remotes.values()].filter((r) => r.car.root.visible).map((r) => ({ x: r.v.x, z: r.v.z, color: r.color })), dt);
+  if (state === 'playing' || state === 'paused') minimap.draw(vehicle, [...remotes.values()].filter((r) => r.car.root.visible).map((r) => ({ x: r.v.x, z: r.v.z, color: r.color })), dt);
   world.update(tmp.set(vehicle.x, 0, vehicle.z), camera.position, dt);
   if (composer && settings.get('bloom')) composer.render(); else renderer.render(scene, camera);
 }

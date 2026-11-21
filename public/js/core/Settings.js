@@ -1,5 +1,5 @@
 const KEY = 'apexdrive.settings.v1';
-const DEFAULTS = { fov: 72, volume: 50, shadows: true, bloom: true, shake: true, quality: 'high', minimap: 'follow' };
+const DEFAULTS = { fov: 72, volume: 50, shadows: true, bloom: true, shake: true, quality: 'high', minimap: 'follow', stats: true };
 
 export class Settings {
   constructor() {
