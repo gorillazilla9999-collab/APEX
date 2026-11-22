@@ -27,7 +27,7 @@ export class Rooms {
   /**
    * Add a player; returns { error } or { room, player, players }.
    * A room's map is fixed by whoever creates it; later joiners get that map whatever they asked for.
-   * Blank / "PUBLIC" means the public room *of the requested map*, so each map has its own public lobby.
+   * mode 'public' (Quick play) joins the busiest public lobby that is still waiting to start; blank / "PUBLIC" without a mode keeps the old one-lobby-per-map behaviour.
    */
   join(id, name, roomCode, now = Date.now(), mapId = DEFAULT_MAP, carId = DEFAULT_CAR, mode) {
     this.leave(id, now);
@@ -42,7 +42,13 @@ export class Rooms {
       if (!raw || pub) return { error: 'ENTER A ROOM CODE' };
       if (!this.rooms.has(typed)) return { error: 'ROOM NOT FOUND' };
     }
-    const code = pub ? `${DEFAULT_ROOM}~${want.toUpperCase()}` : typed; // '~' can never be typed, so no clash with private codes
+    let code = pub ? `${DEFAULT_ROOM}~${want.toUpperCase()}` : typed; // '~' can never be typed, so no clash with private codes
+    if (mode === 'public') { // quick play: fill the busiest public lobby that is waiting for a race, otherwise open a new one
+      const open = [...this.rooms.values()].filter((r) => r.label === DEFAULT_ROOM && r.race.phase === 'lobby' && r.players.size < Math.min(MAX_PER_ROOM, r.race.settings.maxPlayers))
+        .sort((a, b) => b.players.size - a.players.size);
+      if (open[0]) code = open[0].code;
+      else { const base = code; for (let i = 2; this.rooms.has(code); i++) code = `${base}~${i}`; }
+    }
     let room = this.rooms.get(code);
     if (!room) {
       const race = new RaceSession(trackFor); race.settings.map = want;

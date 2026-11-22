@@ -140,7 +140,7 @@ export class UI {
     if (this._flash) return;
     this._showPing();
     const { online, ping } = this._net, n = this.$('net'); n.classList.toggle('on', !!online);
-    n.textContent = online ? `● SERVER ONLINE${ping != null ? ' · ' + ping + ' MS' : ''}` : '○ OFFLINE · SINGLE PLAYER';
+    n.textContent = online ? `● SERVER ONLINE${ping != null ? ' · ' + ping + ' MS' : ''}${this._net.transport === 'polling' ? ' · SLOW LINK (POLLING)' : ''}` : '○ OFFLINE · SINGLE PLAYER';
   }
   /** Live FPS readout (called a few times a second from the render loop). */
   setFps(fps) {

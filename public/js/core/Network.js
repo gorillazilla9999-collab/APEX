@@ -25,7 +25,7 @@ export class Network {
         const o = serverNow + rtt / 2 - Date.now();
         this.offset = this._synced ? this.offset * 0.7 + o * 0.3 : o; this._synced = true;
       }
-      this.onStatus({ online: true, ping: Math.round(rtt) });
+      this.onStatus({ online: true, ping: Math.round(rtt), transport: this.socket.io?.engine?.transport?.name });
     });
   }
   /**

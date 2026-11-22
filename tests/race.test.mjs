@@ -128,4 +128,14 @@ function run(session, drivers, from, until, dt = 33, cb) {
   assert.equal(R.roomState(h.room).players.length, 2);
   const st2 = R.startRace('j', 20000); assert.ok(!st2.error); assert.deepEqual(Object.keys(st2.grid).sort(), ['j', 'l'], 'spectator joins the next race'); assert.equal(R.list(h.room).find((p) => p.id === 'l').spec, 0);
 }
+// ---- quick play matchmaking ----
+{
+  const R = new Rooms();
+  const a = R.join('a', 'A', '', 1, 'sunset', 'apex', 'public'), b = R.join('b', 'B', '', 1, 'neon', 'apex', 'public');
+  assert.equal(b.room, a.room, 'a second quick-player lands in the same public lobby even with a different map choice'); assert.equal(b.room.map, 'sunset');
+  R.startRace('a', 10); const c = R.join('c', 'C', '', 20, 'dunes', 'apex', 'public');
+  assert.notEqual(c.room, a.room, 'a lobby that is mid-race is skipped'); assert.equal(c.room.label, 'PUBLIC'); assert.equal(c.room.map, 'dunes');
+  const d = R.join('d', 'D', '', 30, 'neon', 'apex', 'public'); assert.equal(d.room, c.room, 'joins the open lobby, not the running race');
+  R.setSettings('c', { maxPlayers: 2 }); const e = R.join('e', 'E', '', 40, 'neon', 'apex', 'public'); assert.notEqual(e.room, c.room, 'full public lobby is skipped'); assert.ok(R.rooms.has(e.room.code));
+}
 console.log('race tests passed');

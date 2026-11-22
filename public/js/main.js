@@ -323,11 +323,11 @@ function emitEffects(dt, v) {
 
 const listener = { x: 0, z: 0, fx: 0, fz: 1, vx: 0, vz: 0 };
 let last = performance.now(), acc = 0, fpsFrames = 0, fpsT = performance.now();
-function frame(now) {
-  requestAnimationFrame(frame);
+function frame(now, background = false) {
+  if (!background) requestAnimationFrame(frame);
   fpsFrames++;
-  if (now - fpsT >= 500) { ui.setFps(Math.round(fpsFrames * 1000 / (now - fpsT))); fpsFrames = 0; fpsT = now; }
-  const dt = Math.min((now - last) / 1000, 0.1); last = now;
+  if (!background && now - fpsT >= 500) { ui.setFps(Math.round(fpsFrames * 1000 / (now - fpsT))); fpsFrames = 0; fpsT = now; }
+  const dt = Math.max(0, Math.min((now - last) / 1000, 0.1)); last = Math.max(last, now); // rAF timestamps can be slightly older than a manual frame's now
   if (state === 'playing') {
     const near = world.track.nearest(vehicle.x, vehicle.z);
     onGrass = near.dist > world.roadWidth / 2 + 1.2;
@@ -356,6 +356,7 @@ function frame(now) {
   }
   sendState(dt);
   smoke.update(dt);
+  if (background) return; // hidden tab: simulate + network only, skip drawing
   if (state === 'playing' || state === 'paused') minimap.draw(vehicle, [...remotes.values()].filter((r) => r.car.root.visible).map((r) => ({ x: r.v.x, z: r.v.z, color: r.color })), dt);
   world.update(tmp.set(vehicle.x, 0, vehicle.z), camera.position, dt);
   if (composer && settings.get('bloom')) composer.render(); else renderer.render(scene, camera);
@@ -370,4 +371,10 @@ applySettings();
 spawnAtStart();
 ui.hideLoading();
 requestAnimationFrame(frame);
-window.__apex = { vehicle, renderer, setState, loadMap, get world() { return world; }, get state() { return state; } }; // debug handle
+window.__apex = { vehicle, renderer, setState, loadMap, frame, get world() { return world; }, get state() { return state; } }; // debug handle
+// Browsers pause requestAnimationFrame in background tabs, which froze your car for everyone else (and stopped the race clock HUD).
+// A worker timer is not throttled, so a hidden tab keeps simulating and sending its position.
+try {
+  const w = new Worker(URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 33)'], { type: 'text/javascript' })));
+  w.onmessage = () => { if (document.hidden) frame(performance.now(), true); };
+} catch { /* workers unavailable: the tab simply pauses in the background */ }
