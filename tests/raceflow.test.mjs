@@ -6,7 +6,7 @@ import { gridPose } from '../public/js/race/RaceSession.js';
 
 const sockets = new Map(); let connectionCb;
 const roomSockets = (code) => [...sockets.values()].filter((s) => s.joined.has(code));
-const io = { on: (_e, cb) => (connectionCb = cb), to: (code) => ({ emit: (ev, d) => roomSockets(code).forEach((s) => s.got.push([ev, d])), volatile: { emit: (ev, d) => roomSockets(code).forEach((s) => s.got.push([ev, d])) } }) };
+const io = { on: (_e, cb) => (connectionCb = cb), to: (code) => ({ emit: (ev, d) => roomSockets(code).forEach((s) => s.got.push([ev, d, false])), volatile: { emit: (ev, d) => roomSockets(code).forEach((s) => s.got.push([ev, d, true])) } }) };
 function connect(id) {
   const h = {}, s = { id, joined: new Set(), got: [], rooms: new Set([id]), on: (e, f) => (h[e] = f), emit: (ev, d) => s.got.push([ev, d]),
     join: (c) => { s.joined.add(c); s.rooms.add(c); }, leave: (c) => { s.joined.delete(c); s.rooms.delete(c); },
@@ -39,6 +39,8 @@ assert.equal(last(A, 'room:state').phase, 'countdown');
 const track = trackFor('neon');
 const send = (s, x, z, vx = 0, vz = 0) => s.h['player:state']({ x, z, h: 0, vx, vz, st: 0, yr: 0, f: 0 });
 for (const [s, slot] of [[A, 0], [B, 1]]) { const p = gridPose(track, slot); send(s, p.x, p.z); }
-await sleep(60);
-assert.ok(last(A, 'race:tick') == null || last(A, 'race:tick').ph === 'countdown');
+await sleep(400);
+const tick = A.got.filter(([e]) => e === 'race:tick').at(-1);
+assert.ok(tick, 'standings are being sent during the countdown'); assert.equal(tick[2], false, 'standings must be reliable: socket.io drops volatile packets sent right after the snapshot');
+assert.equal(tick[1].rows.length, 2);
 console.log('race protocol tests passed'); process.exit(0);

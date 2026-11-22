@@ -54,7 +54,8 @@ export function registerSockets(io) {
     for (const { room, phase } of rooms.tickRaces(now)) { if (phase === 'results') pushResults(room); pushState(room); }
     for (const room of rooms.rooms.values()) {
       if (room.players.size >= 2) io.to(room.code).volatile.emit('room:snapshot', { t: now, players: rooms.snapshot(room, now) });
-      if (n % RACE_EVERY === 0 && room.race.phase !== 'lobby') io.to(room.code).volatile.emit('race:tick', room.race.tickPayload(now));
+      // reliable on purpose: a volatile packet right after the snapshot is dropped by socket.io while the transport is still busy writing it
+      if (n % RACE_EVERY === 0 && room.race.phase !== 'lobby') io.to(room.code).emit('race:tick', room.race.tickPayload(now));
     }
   }, TICK_MS);
 }
