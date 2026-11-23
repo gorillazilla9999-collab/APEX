@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { Vehicle } from './physics/Vehicle.js';
-import { collideVehicle } from './physics/Collision.js';
 import { World } from './world/World.js';
 import { Track } from './world/Track.js';
 import { MAPS, DEFAULT_MAP, getMap, isMap } from './world/maps.js';
@@ -38,6 +37,7 @@ const vehicle = new Vehicle();
 let car = null, carDef = null; // built by loadCar() once the UI exists
 const smoke = new Smoke(scene);
 const rig = new CameraRig(camera);
+rig.ground = (x, z) => (world ? world.terrain.height(x, z) : 0);
 const input = new Input();
 const audio = new GameAudio();
 let state = 'menu', composer = null, bloom = null;
@@ -114,14 +114,14 @@ function loadCar(id) {
 function resetVehicle(toast = true) {
   if (race.active && race.locked) return; // no moving off the grid before the start
   const near = world.track.nearest(vehicle.x, vehicle.z), p = world.track.pose(near.i);
-  vehicle.reset(p.x, p.z, p.heading); car.update(STEP, vehicle); rig.snap(vehicle);
+  vehicle.reset(p.x, p.z, p.heading, world.terrain.height(p.x, p.z)); car.update(STEP, vehicle); rig.snap(vehicle);
   if (toast && state === 'playing') ui.toast('VEHICLE RESET');
 }
 /** Online players get staggered grid slots (2 abreast, ~11 m apart) so nobody spawns inside anybody else. */
 function spawnAtStart(slot = -1) {
   const t = world.track;
-  if (slot < 0) { const p = t.pose(0); vehicle.reset(p.x, p.z, p.heading); }
-  else { const p = gridPose(t, slot); vehicle.reset(p.x, p.z, p.heading); }
+  if (slot < 0) { const p = t.pose(0); vehicle.reset(p.x, p.z, p.heading, world.terrain.height(p.x, p.z)); }
+  else { const p = gridPose(t, slot); vehicle.reset(p.x, p.z, p.heading, world.terrain.height(p.x, p.z)); }
   car.update(STEP, vehicle);
 }
 function setState(next) {
@@ -272,8 +272,8 @@ function sendState(dt) {
   sendAcc = 0;
   const v = vehicle, idle = state === 'paused';
   link.sendState({
-    ts: Math.round(clock() * 1000), x: v.x, z: v.z, h: v.heading, vx: idle ? 0 : v.vx, vz: idle ? 0 : v.vz, st: v.steer, yr: idle ? 0 : v.yawRate,
-    f: idle ? 0 : (v.braking ? 1 : 0) | (v.handbrake ? 2 : 0) | (v.nitroActive ? 4 : 0) | (v.sliding ? 8 : 0) | (v.onGrass ? 16 : 0),
+    ts: Math.round(clock() * 1000), x: v.x, z: v.z, y: v.y, vy: idle ? 0 : v.vy, q: v.q, h: v.heading, vx: idle ? 0 : v.vx, vz: idle ? 0 : v.vz, st: v.steer, yr: idle ? 0 : v.yawRate,
+    f: idle ? 0 : (v.braking ? 1 : 0) | (v.handbrake ? 2 : 0) | (v.nitroActive ? 4 : 0) | (v.sliding ? 8 : 0) | (v.onGrass ? 16 : 0) | (v.airborne ? 32 : 0),
   });
 }
 
@@ -305,17 +305,31 @@ function updateRace(dt, near) {
 let onGrass = false;
 const fwd = new THREE.Vector3(), tmp = new THREE.Vector3();
 function simulate(dt) {
-  vehicle.update(dt, drive, onGrass);
-  const impact = collideVehicle(vehicle, world.colliders);
+  vehicle.update(dt, drive, onGrass, world.terrain);
+  const impact = vehicle.collide(world.colliders);
   if (impact > 2.5) { rig.addShake(Math.min(1, impact / 25)); audio.impact(impact); car.bump(impact); }
+  const ev = vehicle.takeEvent();
+  if (ev) onVehicleEvent(ev);
+}
+/** Landings and crashes from the 3D physics: thump, shake, and a toast for big air / flips. */
+function onVehicleEvent(ev) {
+  if (ev.impact > 3) { rig.addShake(Math.min(1, ev.impact / 22)); audio.impact(ev.impact * 1.3); car.bump(ev.impact); }
+  if (ev.type !== 'land' || state !== 'playing') return;
+  const flips = [];
+  const fp = Math.round(Math.abs(ev.flipsPitch)), fr = Math.round(Math.abs(ev.flipsRoll));
+  if (fp >= 1) flips.push(`${fp > 1 ? fp + '× ' : ''}${ev.flipsPitch > 0 ? 'FRONT' : 'BACK'} FLIP`);
+  if (fr >= 1) flips.push(`${fr > 1 ? fr + '× ' : ''}BARREL ROLL`);
+  if (flips.length) ui.toast(`${flips.join(' + ')} · ${ev.air.toFixed(1)}s`, 2200);
+  else if (ev.air >= 0.8) ui.toast(`AIR TIME ${ev.air.toFixed(1)}s · ${Math.round(ev.dist)} m`, 1800);
 }
 function emitEffects(dt, v) {
-  const s = Math.sin(v.heading), c = Math.cos(v.heading);
+  if (v.airborne) return; // no tyre smoke / dust while the wheels are off the ground
+  const s = Math.sin(v.heading), c = Math.cos(v.heading), y = (v.y ?? 0) + 0.15;
   const slide = v.sliding || (v.handbrake && v.speed > 8), dust = v.onGrass && v.speed > 6;
   if ((slide || dust) && Math.random() < dt * 60) {
     for (const side of [-1, 1]) {
       const x = v.x - s * 1.35 - c * side * 0.93, z = v.z - c * 1.35 + s * side * 0.93;
-      smoke.emit(x, 0.15, z, v.vx * 0.15 + (Math.random() - 0.5), v.vz * 0.15 + (Math.random() - 0.5),
+      smoke.emit(x, y, z, v.vx * 0.15 + (Math.random() - 0.5), v.vz * 0.15 + (Math.random() - 0.5),
         dust && !slide ? 0x8a6f4a : 0xdddddd, 1.2 + Math.random(), 0.9 + Math.random() * 0.6, dust && !slide ? 0.4 : 0.5);
     }
   }
@@ -335,6 +349,7 @@ function frame(now, background = false) {
     const raw = input.state; // the countdown locks the controls; "no nitro" rooms mask the nitro key
     drive = race.active && race.locked ? NEUTRAL : race.active && !race.nitro ? { ...raw, nitro: false } : raw;
     for (acc += dt; acc >= STEP; acc -= STEP) simulate(STEP);
+    if (vehicle.needsReset) { resetVehicle(false); ui.toast('FLIPPED · VEHICLE RESET'); } // crashed upside-down / stuck: put it back on the road
     car.update(dt, vehicle); emitEffects(dt, vehicle);
     rig.update(dt, vehicle, settings.get('fov'), settings.get('shake'));
     audio.update(vehicle, drive.throttle);
@@ -358,7 +373,7 @@ function frame(now, background = false) {
   smoke.update(dt);
   if (background) return; // hidden tab: simulate + network only, skip drawing
   if (state === 'playing' || state === 'paused') minimap.draw(vehicle, [...remotes.values()].filter((r) => r.car.root.visible).map((r) => ({ x: r.v.x, z: r.v.z, color: r.color })), dt);
-  world.update(tmp.set(vehicle.x, 0, vehicle.z), camera.position, dt);
+  world.update(tmp.set(vehicle.x, vehicle.y, vehicle.z), camera.position, dt);
   if (composer && settings.get('bloom')) composer.render(); else renderer.render(scene, camera);
 }
 

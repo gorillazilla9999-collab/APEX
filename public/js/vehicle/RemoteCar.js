@@ -22,7 +22,7 @@ export class RemoteCar {
     this.tag = makeTag(name); this.car.root.add(this.tag);
     scene.add(this.car.root); this.car.root.visible = false;
     this.nb = new NetBuffer(); // timestamped snapshot buffer + interpolation (see NetBuffer.js)
-    this.v = { x: 0, z: 0, heading: 0, vx: 0, vz: 0, vF: 0, speed: 0, steer: 0, longAccel: 0, latAccel: 0,
+    this.v = { x: 0, z: 0, y: 0, q: null, airborne: false, heading: 0, vx: 0, vz: 0, vF: 0, speed: 0, steer: 0, longAccel: 0, latAccel: 0,
       yawRate: 0, braking: false, handbrake: false, nitroActive: false, sliding: false, onGrass: false };
     this.away = false;
   }
@@ -35,12 +35,12 @@ export class RemoteCar {
     if (!s) return v;
     const first = !this.car.root.visible;
     const prevVF = v.vF;
-    v.x = s.x; v.z = s.z; v.heading = s.h; v.vx = s.vx; v.vz = s.vz;
+    v.x = s.x; v.z = s.z; v.y = s.y ?? 0; v.q = s.q ?? null; v.heading = s.h; v.vx = s.vx; v.vz = s.vz;
     v.vF = s.vx * Math.sin(s.h) + s.vz * Math.cos(s.h);
     v.speed = Math.hypot(s.vx, s.vz);
     v.steer = s.st; v.yawRate = s.yr;
     const f = s.f;
-    v.braking = !!(f & 1); v.handbrake = !!(f & 2); v.nitroActive = !!(f & 4); v.sliding = !!(f & 8); v.onGrass = !!(f & 16);
+    v.braking = !!(f & 1); v.handbrake = !!(f & 2); v.nitroActive = !!(f & 4); v.sliding = !!(f & 8); v.onGrass = !!(f & 16); v.airborne = !!(f & 32);
     if (dt > 0 && !first) v.longAccel = damp(v.longAccel, (v.vF - prevVF) / dt, 10, dt);
     v.latAccel = damp(v.latAccel, -v.yawRate * v.vF, 10, dt);
     this.car.root.visible = !this.away;

@@ -7,9 +7,10 @@ let nx = 0, nz = 0, pen = 0;
 /** Static obstacle store with a uniform spatial grid. */
 export class Colliders {
   constructor(cell = 30) { this.cell = cell; this.grid = new Map(); this.count = 0; }
-  addCircle(x, z, r) { this._add({ t: 0, x, z, r }, r); }
-  addBox(x, z, hx, hz, theta) {
-    this._add({ t: 1, x, z, hx, hz, c: Math.cos(theta), s: Math.sin(theta) }, Math.hypot(hx, hz));
+  // y0 / y1 = vertical extent of the obstacle (default: infinitely tall). A car flying above y1 clears it; one below y0 passes underneath.
+  addCircle(x, z, r, y0 = -Infinity, y1 = Infinity) { this._add({ t: 0, x, z, r, y0, y1 }, r); }
+  addBox(x, z, hx, hz, theta, y0 = -Infinity, y1 = Infinity) {
+    this._add({ t: 1, x, z, hx, hz, c: Math.cos(theta), s: Math.sin(theta), y0, y1 }, Math.hypot(hx, hz));
   }
   _key(i, j) { return (i + 2048) * 4096 + (j + 2048); }
   _add(o, ext) {
@@ -51,12 +52,14 @@ function contact(o, px, pz, r) {
 /** Resolves vehicle vs static colliders. Returns impact speed (m/s) of the hardest hit this step. */
 export function collideVehicle(v, cols) {
   let impact = 0;
+  const vy = v.y ?? 0;
   for (let pass = 0; pass < 2; pass++) {
     for (const off of OFFSETS) {
       const fx = Math.sin(v.heading), fz = Math.cos(v.heading);
       const list = cols.at(v.x + fx * off, v.z + fz * off);
       if (!list) continue;
       for (const o of list) {
+        if (vy > o.y1 || vy + 1.6 < o.y0) continue; // flying over it / passing under it
         if (!contact(o, v.x + fx * off, v.z + fz * off, CAR_R)) continue;
         v.x += nx * pen; v.z += nz * pen;
         const vn = v.vx * nx + v.vz * nz;

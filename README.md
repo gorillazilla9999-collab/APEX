@@ -7,6 +7,7 @@ npm test       # physics, room logic and socket wiring checks (no network needed
 ```
 
 **Controls:** W accelerate · S brake/reverse · A/D steer · SPACE handbrake · SHIFT nitro · R reset · M minimap · ESC pause
+**In the air:** W/S flip forward/back · A/D barrel roll · SPACE auto-level
 
 ## Cars
 Pick one with the **Car** button on the main menu (remembered; other players see your car's shape online).
@@ -55,6 +56,21 @@ Pick one with the **Map** button on the main menu (your choice is remembered).
 
 The 20 newer maps reuse the five existing looks with brand-new track layouts; they range from near-straight ovals to turn-heavy mazes.
 
+## Elevation, jumps and flips
+Ten maps now have real elevation (`elev` in `maps.js`): **Highway One, Salt Flats, Glacier Oval, Coastal Sweep, Dune Canyon, Cobra, Frostbite Pass, Alpine Esses, Fjord, Avalanche Run**. The road is a raised causeway on grass embankments, with the barriers on its edge.
+- **Hills** slow you on the way up and speed you on the way down (gravity along the slope).
+- **Kickers** (ramp, then a sheer lip, marked with yellow/black hazard stripes) and **table-tops** launch you. Air time and distance scale with speed, so hitting one flat out is very different from rolling over it.
+- **Whoops** (Dune Canyon): three short bumps that kick the car off the ground at speed.
+- **In the air** the car is a proper 3D rigid body (centre of mass, inertia, gravity, drag). W/S pitch it (front/back flip), A/D roll it, SPACE levels it out. With no input the nose gently follows the flight path, so unsteered jumps land flat.
+- **Landing:** wheels-first and roughly level hands control back to the driving model (a hard landing costs speed, shakes the camera and thumps). Anything else (roof, nose, side) tumbles: bodywork and tyre contacts are resolved with impulses, so the car really rolls and slides to rest. A car that ends up on its roof, or stuck, resets itself after ~2 s (or press **R**).
+- Toasts report big air time and completed flips / rolls ("FRONT FLIP · 1.6s").
+- Walls and trees have a height, so a car that is airborne can clear a barrier.
+- Online: each car sends its height, vertical speed and orientation, so other players see jumps and flips (`NetBuffer` interpolates them).
+
+**Adding elevation to a map:** add `elev: { hills: [...], kickers: [...], tables: [...] }` (format in `world/terrain.js`; `at` is a 0..1 lap fraction). Put kickers on straights with 100 m of run-up and 150 m of landing, and keep the last 150 m before the line flat (the grid is there). `npm test` checks all of this.
+
+Lap-time balance (`tests/cars.test.mjs`) still runs on the flat tracks: the AI ignores terrain, so elevated maps are for fun, not tuned for car balance.
+
 **Minimap** (top-left): *Follow* (rotating, zooms out with speed), *Full track*, or off. Press **M**, click it, or use Settings.
 
 **Adding a map:** add an entry to `public/js/world/maps.js` (control points + theme + props). The menu, minimap, server validation and `npm test` (track radius / self-clearance checks) pick it up automatically. New props go in `world/Scenery.js`.
@@ -76,9 +92,9 @@ Run a single instance: rooms live in server memory.
 
 ## Structure
 - `server/` – Express static host, `rooms.js` (pure room/validation logic), `sockets.js` (Socket.IO wiring + 20 Hz snapshots)
-- `public/js/physics/` – pure-JS vehicle model + collision (no Three.js, unit-testable)
+- `public/js/physics/` – pure-JS vehicle model (arcade driving + 3D rigid-body flight/tumbling, `rigid.js` quaternion helpers) + collision (no Three.js, unit-testable)
 - `public/js/vehicle/` – `cars.js` (car catalogue + stat→physics scaling, shared with the server), car mesh, `RemoteCar` (interpolated networked cars), smoke
-- `public/js/world/` – `maps.js` (map catalogue, shared with the server), track, procedural scenery (`World.js`, `Scenery.js`), canvas textures
+- `public/js/world/` – `maps.js` (map catalogue, shared with the server), `terrain.js` (road height profile + ground queries, shared by physics and meshes), track, procedural scenery (`World.js`, `Scenery.js`), canvas textures
 - `public/js/core/` – input, camera rig, audio, settings, UI, `Network` (join/leave/state sync, auto-rejoin), `Minimap.js` + `minimapMath.js`
 - `public/js/main.js` – game loop and state machine (menu / playing / paused)
 

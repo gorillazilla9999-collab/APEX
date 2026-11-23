@@ -125,7 +125,11 @@ export class Rooms {
     if (now - p.lastAccepted < MIN_STATE_GAP_MS) return false;
     const ts = num(s.ts, 1e10), x = num(s.x), z = num(s.z), h = num(s.h, 1e4), vx = num(s.vx, 400), vz = num(s.vz, 400), st = num(s.st, 2), yr = num(s.yr, 20);
     if ([x, z, h, vx, vz, st, yr].some((v) => v === null)) return false;
-    p.state = { ...(ts !== null && { ts: Math.round(ts) }), x: r2(x), z: r2(z), h: Math.round(h * 1000) / 1000, vx: r2(vx), vz: r2(vz), st: Math.round(st * 1000) / 1000, yr: r2(yr), f: (s.f | 0) & 63 };
+    // optional 3D fields (older clients send none): height, vertical speed, orientation quaternion
+    const y = s.y === undefined ? 0 : num(s.y, 3000), vy = s.vy === undefined ? 0 : num(s.vy, 400);
+    if (y === null || vy === null) return false;
+    const q = Array.isArray(s.q) && s.q.length === 4 && s.q.every((c) => Number.isFinite(c) && Math.abs(c) <= 1.01) ? s.q.map((c) => Math.round(c * 1000) / 1000) : undefined;
+    p.state = { ...(ts !== null && { ts: Math.round(ts) }), ...(y !== 0 && { y: r2(y) }), ...(vy !== 0 && { vy: r2(vy) }), ...(q && { q }), x: r2(x), z: r2(z), h: Math.round(h * 1000) / 1000, vx: r2(vx), vz: r2(vz), st: Math.round(st * 1000) / 1000, yr: r2(yr), f: (s.f | 0) & 63 };
     p.lastAccepted = now; p.last = now;
     this.roomOf(id).race.update(id, p.state.x, p.state.z, Math.hypot(p.state.vx, p.state.vz), now);
     return true;

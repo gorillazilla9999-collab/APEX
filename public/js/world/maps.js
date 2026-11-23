@@ -2,6 +2,9 @@
  * Map catalogue. Pure data (no Three.js import) so the server can validate map ids with the very same list the
  * client renders from. A map = track layout + visual theme + a list of scenery props.
  *
+ * Elevation (optional `elev`): road height along the lap, so cars climb hills and can jump. See world/terrain.js for the
+ * hills / kickers / tables format. Keep the last ~150 m before the line flat (the starting grid sits there).
+ *
  * Track: closed centre-line through `control` [x, z] points (Catmull-Rom, centripetal). Start/finish is control[0],
  * the car drives towards control[1]. `samples` = number of centre-line samples (omit to pick ~2.6 m spacing).
  */
@@ -62,7 +65,7 @@ const NEON = {
 };
 
 const DUNES = {
-  id: 'dunes', name: 'DUNE CANYON', tag: 'Long, wide desert sweepers. Flat out and keep it tidy.', difficulty: 3,
+  id: 'dunes', name: 'DUNE CANYON', tag: 'Wide desert sweepers over rolling dunes, with a set of whoops.', difficulty: 3,
   roadWidth: 18, seed: 5,
   control: [[0, 0], [180, 20], [360, -30], [520, 40], [600, 170], [560, 320], [430, 380], [330, 300], [230, 330], [200, 450],
     [100, 540], [-60, 520], [-150, 420], [-120, 300], [-220, 220], [-250, 90], [-150, -20]],
@@ -81,10 +84,12 @@ const DUNES = {
     mini: { bg: '#3a2c1a', road: '#f4e3c0' },
   },
   props: ['dunes', 'rocks', 'cacti'],
+  elev: { hills: [{ at: 0.08, len: 70, h: 3.5 }, { at: 0.2, len: 90, h: 6 }, { at: 0.35, len: 60, h: 4 }, { at: 0.5, len: 100, hold: 40, h: 8 },
+    { at: 0.62, len: 12, h: 1.1 }, { at: 0.6296, len: 12, h: 1.1 }, { at: 0.6392, len: 12, h: 1.1 }, { at: 0.75, len: 70, h: 5 }] } /* the three 12 m bumps are whoops */,
 };
 
 const FROST = {
-  id: 'frost', name: 'FROSTBITE PASS', tag: 'Snowy mountain road with hairpins and heavy fog. Brake early.', difficulty: 5,
+  id: 'frost', name: 'FROSTBITE PASS', tag: 'Snowy mountain pass that climbs to a summit. Hairpins, heavy fog: brake early.', difficulty: 5,
   roadWidth: 15, seed: 33,
   control: [[0, 0], [120, -20], [220, -90], [330, -70], [390, 20], [340, 115], [230, 125], [170, 200], [225, 280], [330, 300],
     [395, 380], [340, 470], [220, 480], [140, 420], [60, 450], [-30, 510], [-140, 480], [-180, 380], [-140, 310], [-195, 235],
@@ -105,6 +110,7 @@ const FROST = {
     mini: { bg: '#1c2733', road: '#ffffff' },
   },
   props: ['snowfall'],
+  elev: { hills: [{ at: 0.10, len: 150, hold: 150, h: 14 }, { at: 0.55, len: 110, h: 8 }, { at: 0.77, len: 90, h: 6 }] },
 };
 
 const SPEEDWAY = {
@@ -146,9 +152,10 @@ function retheme(theme) {
 // Lots of turns:     crosstown, labyrinth, starburst, cobra, avalanche, fjord, alpine, chicane
 
 const HIGHWAY = {
-  id: 'highway', name: 'HIGHWAY ONE', tag: 'Two huge straights, two big turnarounds. Barely a corner: just go.', difficulty: 1,
+  id: 'highway', name: 'HIGHWAY ONE', tag: 'Two huge straights with a kicker and a table-top jump. Hit them flat out.', difficulty: 1,
   roadWidth: 20, seed: 40, theme: retheme(SUNSET.theme),
   props: [],
+  elev: { kickers: [{ at: 0.53, len: 16, h: 2.0 }], tables: [{ at: 0.06, up: 18, top: 22, down: 22, h: 2.4 }], hills: [{ at: 0.31, len: 70, h: 3.5 }, { at: 0.82, len: 80, h: 4 }] },
   control: [
     [0, 0], [68, 0], [204, 0], [340, 0], [476, 0], [612, 0],
     [646, 5], [677, 21], [701, 45], [717, 76], [722, 110], [717, 144],
@@ -160,9 +167,10 @@ const HIGHWAY = {
 };
 
 const SALTFLATS = {
-  id: 'saltflats', name: 'SALT FLATS', tag: 'An enormous, gentle bowl. Hold the throttle and chase top speed.', difficulty: 1,
+  id: 'saltflats', name: 'SALT FLATS', tag: 'An enormous bowl with two big kickers. Hold the throttle and go airborne.', difficulty: 1,
   roadWidth: 26, seed: 41, theme: DUNES.theme,
   props: DUNES.props,
+  elev: { kickers: [{ at: 0.255, len: 18, h: 2.4 }, { at: 0.84, len: 20, h: 2.8 }], hills: [{ at: 0.5, len: 150, h: 6 }, { at: 0.63, len: 100, h: 4 }] },
   control: [
     [0, 0], [79, 29], [189, 137], [209, 273], [143, 396], [33, 488],
     [-93, 557], [-235, 607], [-398, 622], [-561, 588], [-694, 508], [-781, 398],
@@ -172,9 +180,10 @@ const SALTFLATS = {
 };
 
 const GLACIER = {
-  id: 'glacier', name: 'GLACIER OVAL', tag: 'A wide frozen oval with long sweeping bends. Few turns, lots of speed.', difficulty: 2,
+  id: 'glacier', name: 'GLACIER OVAL', tag: 'A wide frozen oval with a table-top, a kicker and a couple of rises.', difficulty: 2,
   roadWidth: 18, seed: 42, theme: FROST.theme,
   props: FROST.props,
+  elev: { tables: [{ at: 0.40, up: 16, top: 20, down: 20, h: 2.0 }], kickers: [{ at: 0.845, len: 14, h: 1.8 }], hills: [{ at: 0.07, len: 90, h: 3.5 }, { at: 0.68, len: 100, h: 5 }] },
   control: [
     [0, 0], [-71, -1], [-197, -30], [-281, -79], [-323, -133], [-339, -188],
     [-335, -244], [-293, -301], [-200, -348], [-68, -371], [71, -371], [198, -355],
@@ -210,9 +219,10 @@ const TRIOVAL = {
 };
 
 const COASTAL = {
-  id: 'coastal', name: 'COASTAL SWEEP', tag: 'Smooth seaside kidney loop. A few long curves and one pinch.', difficulty: 2,
+  id: 'coastal', name: 'COASTAL SWEEP', tag: 'Smooth seaside loop with rolling hills, a clifftop plateau and a small jump.', difficulty: 2,
   roadWidth: 18, seed: 45, theme: retheme(SUNSET.theme),
   props: [],
+  elev: { kickers: [{ at: 0.015, len: 14, h: 1.6 }], hills: [{ at: 0.30, len: 120, h: 6 }, { at: 0.45, len: 130, hold: 60, h: 9 }, { at: 0.72, len: 80, h: 4 }] },
   control: [
     [0, 0], [80, -6], [240, -19], [328, -21], [416, -11], [515, 6],
     [614, 24], [681, 47], [737, 90], [776, 149], [779, 155], [791, 203],
@@ -368,9 +378,10 @@ const STARBURST = {
 };
 
 const COBRA = {
-  id: 'cobra', name: 'COBRA', tag: 'Snaking hairpin stack with a long straight home.', difficulty: 4,
+  id: 'cobra', name: 'COBRA', tag: 'Snaking hairpin stack over rolling hills, with a kicker and a table-top.', difficulty: 4,
   roadWidth: 16, seed: 55, theme: DUNES.theme,
   props: DUNES.props,
+  elev: { kickers: [{ at: 0.60, len: 16, h: 2.2 }], tables: [{ at: 0.69, up: 18, top: 24, down: 24, h: 2.6 }], hills: [{ at: 0.2, len: 80, h: 4 }, { at: 0.39, len: 90, h: 6 }, { at: 0.82, len: 60, h: 4 }, { at: 0.90, len: 80, h: 6 }] },
   control: [
     [0, 0], [83, 0], [249, 0], [415, 0], [431, 3], [446, 10],
     [457, 21], [464, 36], [467, 52], [464, 69], [457, 84], [446, 95],
@@ -386,9 +397,10 @@ const COBRA = {
 };
 
 const ALPINE = {
-  id: 'alpine', name: 'ALPINE ESSES', tag: 'Rows of S-bends climbing and falling back down. Constant rhythm.', difficulty: 5,
+  id: 'alpine', name: 'ALPINE ESSES', tag: 'Rows of S-bends that really do climb and fall: up to 18 m of elevation.', difficulty: 5,
   roadWidth: 14, seed: 56, theme: FROST.theme,
   props: FROST.props,
+  elev: { hills: [{ at: 0.03, len: 220, h: 16 }, { at: 0.25, len: 160, hold: 80, h: 10 }, { at: 0.52, len: 200, hold: 120, h: 18 }, { at: 0.83, len: 140, h: 8 }] },
   control: [
     [0, 0], [70, -29], [98, -35], [127, -31], [152, -17], [228, 46],
     [303, 110], [327, 123], [355, 128], [382, 123], [406, 110], [475, 52],
@@ -406,9 +418,10 @@ const ALPINE = {
 };
 
 const AVALANCHE = {
-  id: 'avalanche', name: 'AVALANCHE RUN', tag: 'Diamond course: two tight hairpins joined by long fast diagonals.', difficulty: 4,
+  id: 'avalanche', name: 'AVALANCHE RUN', tag: 'Diamond course with a table-top and a kicker on the fast diagonals.', difficulty: 4,
   roadWidth: 16, seed: 57, theme: FROST.theme,
   props: FROST.props,
+  elev: { tables: [{ at: 0.52, up: 16, top: 20, down: 20, h: 2.2 }], kickers: [{ at: 0.78, len: 14, h: 1.8 }], hills: [{ at: 0.06, len: 90, h: 5 }, { at: 0.41, len: 60, hold: 20, h: 4 }, { at: 0.64, len: 80, h: 5 }] },
   control: [
     [0, 0], [58, -37], [174, -110], [289, -184], [350, -207], [414, -207],
     [474, -182], [585, -109], [696, -36], [806, 37], [821, 51], [830, 68],
@@ -420,9 +433,10 @@ const AVALANCHE = {
 };
 
 const FJORD = {
-  id: 'fjord', name: 'FJORD', tag: 'Twisting coastal road. Relentless, rhythmic and never quite straight.', difficulty: 4,
+  id: 'fjord', name: 'FJORD', tag: 'Twisting coastal road that rises and falls over the headlands.', difficulty: 4,
   roadWidth: 15, seed: 58, theme: FROST.theme,
   props: FROST.props,
+  elev: { hills: [{ at: 0.08, len: 130, h: 7 }, { at: 0.28, len: 160, hold: 60, h: 11 }, { at: 0.52, len: 120, h: 6 }, { at: 0.72, len: 150, h: 9 }] },
   control: [
     [0, 0], [-65, 32], [-84, 39], [-104, 39], [-123, 34], [-211, -2],
     [-298, -39], [-319, -51], [-336, -68], [-347, -88], [-396, -209], [-402, -238],

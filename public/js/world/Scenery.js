@@ -16,7 +16,7 @@ function spot(w, minOff, maxOff, side = 0) {
   const t = w.track, rng = w.rng, i = Math.floor(rng() * t.n), sd = side || (rng() < 0.5 ? -1 : 1), off = w.half + minOff + rng() * (maxOff - minOff);
   return { x: t.px[i] - t.tz[i] * sd * off, z: t.pz[i] + t.tx[i] * sd * off, i, side: sd, tx: t.tx[i], tz: t.tz[i] };
 }
-const clear = (w, x, z, minTrack, pad = 0) => w.track.nearest(x, z).dist >= w.half + minTrack && !w.blocked.some((b) => Math.hypot(b.x - x, b.z - z) < b.r + pad);
+const clear = (w, x, z, minTrack, pad = 0) => w.track.nearest(x, z).dist >= w.half + minTrack && w.terrain.height(x, z) < 0.05 && !w.blocked.some((b) => Math.hypot(b.x - x, b.z - z) < b.r + pad);
 
 /** Place a child part of a composite instance: parent transform * local offset. */
 function putPart(mesh, k, parent, lx, ly, lz, rotZ = 0) {

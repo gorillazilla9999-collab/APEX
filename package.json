@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node tests/physics.test.mjs && node tests/rooms.test.mjs && node tests/maps.test.mjs && node tests/cars.test.mjs && node tests/minimap.test.mjs && node tests/sockets.test.mjs && node tests/netbuffer.test.mjs && node tests/audio.test.mjs && node tests/audio.smoke.mjs && node tests/race.test.mjs && node tests/raceflow.test.mjs"
+    "test": "node tests/physics.test.mjs && node tests/rooms.test.mjs && node tests/maps.test.mjs && node tests/cars.test.mjs && node tests/minimap.test.mjs && node tests/sockets.test.mjs && node tests/netbuffer.test.mjs && node tests/audio.test.mjs && node tests/audio.smoke.mjs && node tests/race.test.mjs && node tests/raceflow.test.mjs && node tests/terrain.test.mjs"
   },
   "dependencies": {
     "express": "^4.19.2",

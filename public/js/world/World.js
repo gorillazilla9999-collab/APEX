@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Track } from './Track.js';
+import { Terrain } from './terrain.js';
 import { Colliders } from '../physics/Collision.js';
 import { roadTex, kerbTex, grassTex, checkerTex, windowTex, signTex } from './textures.js';
 import { PROPS } from './Scenery.js';
@@ -14,11 +15,12 @@ export class World {
     const th = (this.theme = map.theme);
     this.map = map; this.track = track; this.roadWidth = track.roadWidth; this.half = this.roadWidth / 2;
     this.barrierOff = this.half + 3.4; this.bounds = track.bounds;
+    this.terrain = new Terrain(track, map.elev); // road height profile + ground queries (shared with the vehicle physics)
     this.group = new THREE.Group(); this.colliders = new Colliders();
     this.rng = mulberry32(map.seed ?? 7); this.blocked = []; this.dyn = [];
     this.horizon = new THREE.Color(th.sky.horizon);
     this.sunDir = new THREE.Vector3(...th.sun.dir).normalize();
-    this._lights(); this._sky(); this._ground(); this._road(); this._barriers();
+    this._lights(); this._sky(); this._ground(); this._road(); if (!this.terrain.flat) { this._banks(); this._ramps(); } this._barriers();
     if (th.lamp) this._lamps();
     this._gantry(); this._signs();
     if (th.buildings) this._buildings();
@@ -86,26 +88,72 @@ export class World {
 
   _ground() {
     const g = this.theme.ground;
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000).rotateX(-Math.PI / 2),
-      new THREE.MeshStandardMaterial({ map: grassTex(g.base, g.speck), roughness: 1 }));
+    this.groundMat = new THREE.MeshStandardMaterial({ map: grassTex(g.base, g.speck), roughness: 1 });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000).rotateX(-Math.PI / 2), this.groundMat);
     m.receiveShadow = true; this.group.add(m);
   }
 
-  _strip(d0, d1, y, mat) {
-    const t = this.track, n = t.n, vLen = t.length / Math.round(t.length / 12);
-    const pos = new Float32Array((n + 1) * 6), uv = new Float32Array((n + 1) * 4), idx = [];
+  /** Centre-line station k (0..n*sub): position, unit tangent and road height. Sub-sampled on elevated maps so ramp lips stay sharp. */
+  _station(i, sub) {
+    const t = this.track, n = t.n, kk = Math.floor(i / sub), f = (i % sub) / sub, a = kk % n, b = (kk + 1) % n;
+    let tx = t.tx[a] + (t.tx[b] - t.tx[a]) * f, tz = t.tz[a] + (t.tz[b] - t.tz[a]) * f; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
+    return { x: t.px[a] + (t.px[b] - t.px[a]) * f, z: t.pz[a] + (t.pz[b] - t.pz[a]) * f, tx, tz, y: this.terrain.flat ? 0 : this.terrain.profile((kk + f) * t.ds) };
+  }
+
+  _strip(d0, d1, yOff, mat) {
+    const t = this.track, n = t.n, sub = this.terrain.flat ? 1 : 4, N = n * sub, vLen = t.length / Math.round(t.length / 12), dd = t.ds / sub;
+    const pos = new Float32Array((N + 1) * 6), uv = new Float32Array((N + 1) * 4), idx = [];
     let dist = 0;
-    for (let i = 0; i <= n; i++) {
-      const k = i % n, rx = -t.tz[k], rz = t.tx[k];
-      pos.set([t.px[k] + rx * d0, y, t.pz[k] + rz * d0, t.px[k] + rx * d1, y, t.pz[k] + rz * d1], i * 6);
-      uv.set([0, dist / vLen, 1, dist / vLen], i * 4); dist += t.ds;
-      if (i < n) { const a = i * 2; idx.push(a, a + 1, a + 3, a, a + 3, a + 2); }
+    for (let i = 0; i <= N; i++) {
+      const st = this._station(i, sub), rx = -st.tz, rz = st.tx, y = st.y + yOff;
+      pos.set([st.x + rx * d0, y, st.z + rz * d0, st.x + rx * d1, y, st.z + rz * d1], i * 6);
+      uv.set([0, dist / vLen, 1, dist / vLen], i * 4); dist += dd;
+      if (i < N) { const a = i * 2; idx.push(a, a + 1, a + 3, a, a + 3, a + 2); }
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
     geo.setIndex(idx); geo.computeVertexNormals();
     const m = new THREE.Mesh(geo, mat); m.receiveShadow = true; this.group.add(m);
+  }
+
+  /** Embankments: grass slopes that carry an elevated road down to the ground on both sides (and the run-off between kerb and barrier). */
+  _banks() {
+    const T = this.terrain, t = this.track, sub = 4, N = t.n * sub, H = this.half, B = this.barrierOff, K = [0, 0.12, 0.3, 0.5, 0.7, 0.85, 1];
+    const mat = this.groundMat.clone(); Object.assign(mat, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+    for (const side of [-1, 1]) {
+      const rows = K.length + 1, pos = new Float32Array((N + 1) * rows * 3), uv = new Float32Array((N + 1) * rows * 2), idx = [], hi = new Float32Array(N + 1);
+      for (let i = 0; i <= N; i++) {
+        const st = this._station(i, sub), rx = -st.tz * side, rz = st.tx * side, w = T.shoulder(st.y); hi[i] = st.y;
+        for (let r = 0; r < rows; r++) {
+          const d = r === 0 ? H + 1.2 : B + K[r - 1] * w, y = d <= B ? st.y : T.bank(st.y, d), x = st.x + rx * d, z = st.z + rz * d, o = (i * rows + r);
+          pos.set([x, y - (d <= B ? 0.01 : 0), z], o * 3); uv.set([x / 4000 + 0.5, 0.5 - z / 4000], o * 2);
+        }
+        if (i < N) for (let r = 0; r < rows - 1; r++) {
+          if (Math.max(hi[i], T.profile(((i + 1) / sub) * t.ds)) < 0.02) continue; // flat stretch: the ground plane already covers it
+          const a = i * rows + r, b = a + rows;
+          if (side > 0) idx.push(a, a + 1, b + 1, a, b + 1, b); else idx.push(a, b + 1, a + 1, a, b, b + 1); // winding flips with the side so both face up
+        }
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+      geo.setIndex(idx);
+      geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, mat); m.receiveShadow = true; m.frustumCulled = false; this.group.add(m);
+    }
+  }
+
+  /** Hazard stripes painted along each ramp's lip so jumps can be spotted from a distance. */
+  _ramps() {
+    const E = this.terrain.elev, t = this.track, L = t.length, mat = new THREE.MeshStandardMaterial({ map: kerbTex('#f2c230', '#161616'), roughness: 0.6, emissive: 0x332600, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    mat.map.repeat.set(1, 1);
+    const put = (s0, len, h) => { // stripe over the last 1.8 m of a ramp that climbs h over len, starting at arc length s0
+      const w = 1.8, sc = s0 + len - w / 2, i = Math.round(((sc % L) + L) % L / t.ds) % t.n, tx = t.tx[i], tz = t.tz[i], y = h * (1 - w / 2 / len) + 0.07;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(this.roadWidth, w).rotateX(-Math.PI / 2), mat);
+      m.rotation.order = 'YXZ'; m.rotation.set(-Math.atan2(h, len), Math.atan2(tx, tz), 0); m.position.set(t.px[i], y, t.pz[i]); m.receiveShadow = true; this.group.add(m);
+    };
+    for (const f of E.kickers ?? []) put(f.at * L, f.len, f.h);
+    for (const f of E.tables ?? []) put(f.at * L, f.up, f.h);
   }
 
   _road() {
@@ -118,20 +166,21 @@ export class World {
   }
 
   _barriers() {
-    const t = this.track, step = 3, segs = [], B = this.barrierOff;
+    const t = this.track, T = this.terrain, step = T.flat ? 3 : 1, segs = [], B = this.barrierOff;
     for (const side of [-1, 1]) for (let i = 0; i < t.n; i += step) {
       const j = (i + step) % t.n;
       const ax = t.px[i] - t.tz[i] * side * B, az = t.pz[i] + t.tx[i] * side * B;
       const bx = t.px[j] - t.tz[j] * side * B, bz = t.pz[j] + t.tx[j] * side * B;
-      segs.push({ x: (ax + bx) / 2, z: (az + bz) / 2, len: Math.hypot(bx - ax, bz - az) + 0.15, th: Math.atan2(bx - ax, bz - az), alt: (i / step) % 2 });
+      const ya = T.roadAt(i), yb = i + step >= t.n ? T.roadAt(0) : T.roadAt(j), run = Math.hypot(bx - ax, bz - az);
+      segs.push({ x: (ax + bx) / 2, z: (az + bz) / 2, len: run + 0.15, th: Math.atan2(bx - ax, bz - az), alt: (i / step) % 2, y: (ya + yb) / 2, pitch: -Math.max(-0.45, Math.min(0.45, Math.atan2(yb - ya, run))), y0: Math.min(ya, yb) - 0.4, y1: Math.max(ya, yb) + 0.9 });
     }
-    const [ca, cb] = this.theme.barrier;
+    const [ca, cb] = this.theme.barrier, bd = new THREE.Object3D(); bd.rotation.order = 'YXZ';
     const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.6, 0.9, 6), new THREE.MeshStandardMaterial({ roughness: 0.6 }), segs.length);
     const a = new THREE.Color(ca), b = new THREE.Color(cb);
     segs.forEach((s, k) => {
-      dummy.position.set(s.x, 0.45, s.z); dummy.rotation.set(0, s.th, 0); dummy.scale.set(1, 1, s.len / 6); dummy.updateMatrix();
-      mesh.setMatrixAt(k, dummy.matrix); mesh.setColorAt(k, s.alt ? a : b);
-      this.colliders.addBox(s.x, s.z, 0.3, s.len / 2, s.th);
+      bd.position.set(s.x, 0.45 + s.y, s.z); bd.rotation.set(s.pitch, s.th, 0); bd.scale.set(1, 1, s.len / 6); bd.updateMatrix();
+      mesh.setMatrixAt(k, bd.matrix); mesh.setColorAt(k, s.alt ? a : b);
+      this.colliders.addBox(s.x, s.z, 0.3, s.len / 2, s.th, s.y0, s.y1);
     });
     mesh.castShadow = mesh.receiveShadow = true; mesh.frustumCulled = false; this.group.add(mesh);
   }
@@ -146,51 +195,51 @@ export class World {
     const heads = new THREE.InstancedMesh(new THREE.BoxGeometry(0.9, 0.12, 0.35), glow, ids.length);
     ids.forEach(([i, side], k) => {
       const tx = t.tx[i], tz = t.tz[i], rx = -tz * side, rz = tx * side, off = this.half + 7;
-      const px = t.px[i] + rx * off, pz = t.pz[i] + rz * off, th = Math.atan2(-tx, -tz);
+      const px = t.px[i] + rx * off, pz = t.pz[i] + rz * off, th = Math.atan2(-tx, -tz), gy = this.terrain.height(px, pz);
       dummy.scale.set(1, 1, 1); dummy.rotation.set(0, th, 0);
-      dummy.position.set(px, 4.5, pz); dummy.updateMatrix(); poles.setMatrixAt(k, dummy.matrix);
-      dummy.position.set(px - rx * 1.1, 9, pz - rz * 1.1); dummy.updateMatrix(); arms.setMatrixAt(k, dummy.matrix);
-      dummy.position.set(px - rx * 2.1, 8.9, pz - rz * 2.1); dummy.updateMatrix(); heads.setMatrixAt(k, dummy.matrix);
-      this.colliders.addCircle(px, pz, 0.3);
+      dummy.position.set(px, 4.5 + gy, pz); dummy.updateMatrix(); poles.setMatrixAt(k, dummy.matrix);
+      dummy.position.set(px - rx * 1.1, 9 + gy, pz - rz * 1.1); dummy.updateMatrix(); arms.setMatrixAt(k, dummy.matrix);
+      dummy.position.set(px - rx * 2.1, 8.9 + gy, pz - rz * 2.1); dummy.updateMatrix(); heads.setMatrixAt(k, dummy.matrix);
+      this.colliders.addCircle(px, pz, 0.3, gy, gy + 9);
     });
     poles.castShadow = true;
     [poles, arms, heads].forEach((m) => { m.frustumCulled = false; this.group.add(m); });
   }
 
   _gantry() {
-    const t = this.track, i = 0, tx = t.tx[i], tz = t.tz[i], rx = -tz, rz = tx, th = Math.atan2(-tx, -tz), H = this.half;
+    const t = this.track, i = 0, tx = t.tx[i], tz = t.tz[i], rx = -tz, rz = tx, th = Math.atan2(-tx, -tz), H = this.half, gy = this.terrain.roadAt(0);
     const dark = new THREE.MeshStandardMaterial({ color: 0x17181c, roughness: 0.5, metalness: 0.6 });
     for (const s of [-1, 1]) {
       const post = new THREE.Mesh(new THREE.BoxGeometry(0.8, 8.4, 0.8), dark);
-      post.position.set(t.px[i] + rx * s * (H + 1.8), 4.2, t.pz[i] + rz * s * (H + 1.8));
+      post.position.set(t.px[i] + rx * s * (H + 1.8), 4.2 + gy, t.pz[i] + rz * s * (H + 1.8));
       post.castShadow = true; this.group.add(post);
       this.colliders.addCircle(post.position.x, post.position.z, 0.6);
     }
     const sign = new THREE.MeshStandardMaterial({ map: signTex('APEX DRIVE', '#c8101e'), emissiveMap: null, roughness: 0.5 });
     const beam = new THREE.Mesh(new THREE.BoxGeometry(this.roadWidth + 5, 1.7, 0.7), [dark, dark, dark, dark, sign, sign]);
-    beam.position.set(t.px[i], 8, t.pz[i]); beam.rotation.y = th; beam.castShadow = true; this.group.add(beam);
+    beam.position.set(t.px[i], 8 + gy, t.pz[i]); beam.rotation.y = th; beam.castShadow = true; this.group.add(beam);
     const line = new THREE.Mesh(new THREE.PlaneGeometry(this.roadWidth, 2).rotateX(-Math.PI / 2),
       new THREE.MeshStandardMaterial({ map: checkerTex(), roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
     line.material.map.repeat.set(1, 1);
-    line.position.set(t.px[i], 0.06, t.pz[i]); line.rotation.y = th; this.group.add(line);
+    line.position.set(t.px[i], 0.06 + gy, t.pz[i]); line.rotation.y = th; this.group.add(line);
   }
 
   _signs() {
     const t = this.track, defs = this.theme.signs, glow = this.theme.signGlow;
     defs.forEach(([txt, bg], k) => {
       const i = t.at(0.1 + k * 0.2333), side = k % 2 ? 1 : -1, off = this.half + 15;
-      const tx = t.tx[i], tz = t.tz[i], x = t.px[i] - tz * side * off, z = t.pz[i] + tx * side * off;
+      const tx = t.tx[i], tz = t.tz[i], x = t.px[i] - tz * side * off, z = t.pz[i] + tx * side * off, gy = this.terrain.height(x, z);
       const dark = new THREE.MeshStandardMaterial({ color: 0x20232a, roughness: 0.6 });
       const tex = signTex(txt, bg);
       const face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55, ...(glow ? { emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: glow } : {}) });
       const board = new THREE.Mesh(new THREE.BoxGeometry(14, 4.4, 0.4), [dark, dark, dark, dark, face, dark]);
-      board.position.set(x, 5.2, z); board.rotation.y = Math.atan2(-tz, tx) + (side > 0 ? Math.PI : 0);
+      board.position.set(x, 5.2 + gy, z); board.rotation.y = Math.atan2(-tz, tx) + (side > 0 ? Math.PI : 0);
       board.castShadow = true; this.group.add(board);
       for (const s of [-1, 1]) {
         const px = x + tx * s * 5, pz = z + tz * s * 5;
         const post = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 3.2, 8), dark);
-        post.position.set(px, 1.6, pz); post.castShadow = true; this.group.add(post);
-        this.colliders.addCircle(px, pz, 0.3);
+        post.position.set(px, 1.6 + gy, pz); post.castShadow = true; this.group.add(post);
+        this.colliders.addCircle(px, pz, 0.3, gy, gy + 3.2);
       }
       this.blocked.push({ x, z, r: 9 });
     });
@@ -239,7 +288,7 @@ export class World {
       const x = xa + rng() * (xb - xa), z = za + rng() * (zb - za);
       if (t.nearest(x, z).dist < H + 10) continue;
       if (this.blocked.some((b) => Math.hypot(b.x - x, b.z - z) < b.r)) continue;
-      spots.push([x, z, 0.8 + rng() * 0.9]);
+      spots.push([x, z, 0.8 + rng() * 0.9, this.terrain.height(x, z)]);
     }
     const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.22, 0.34, 2.4, 6), new THREE.MeshStandardMaterial({ color: 0x4b3424, roughness: 1 }), spots.length);
     const fol = new THREE.MeshStandardMaterial({ roughness: 0.9, flatShading: true });
@@ -247,15 +296,15 @@ export class World {
     const high = new THREE.InstancedMesh(new THREE.ConeGeometry(1.7, 3.6, 7), fol, spots.length);
     const base = T.palette.map((c) => new THREE.Color(c)), rare = T.rare != null ? new THREE.Color(T.rare) : null, all = rare ? [...base, rare] : base;
     const white = new THREE.Color(0xf4f8fc), cap = new THREE.Color();
-    spots.forEach(([x, z, s], k) => {
+    spots.forEach(([x, z, s, gy], k) => {
       dummy.rotation.set(0, rng() * 6, 0); dummy.scale.setScalar(s);
-      dummy.position.set(x, 1.2 * s, z); dummy.updateMatrix(); trunk.setMatrixAt(k, dummy.matrix);
-      dummy.position.set(x, 4.0 * s, z); dummy.updateMatrix(); low.setMatrixAt(k, dummy.matrix);
-      dummy.position.set(x, 6.3 * s, z); dummy.updateMatrix(); high.setMatrixAt(k, dummy.matrix);
+      dummy.position.set(x, gy + 1.2 * s, z); dummy.updateMatrix(); trunk.setMatrixAt(k, dummy.matrix);
+      dummy.position.set(x, gy + 4.0 * s, z); dummy.updateMatrix(); low.setMatrixAt(k, dummy.matrix);
+      dummy.position.set(x, gy + 6.3 * s, z); dummy.updateMatrix(); high.setMatrixAt(k, dummy.matrix);
       const c = all[Math.floor(rng() * (rng() < 0.12 ? all.length : base.length))];
       low.setColorAt(k, c);
       high.setColorAt(k, T.snow ? cap.copy(c).lerp(white, T.snow) : c); // snow-covered upper boughs
-      this.colliders.addCircle(x, z, 0.5 * s);
+      this.colliders.addCircle(x, z, 0.5 * s, gy, gy + 8 * s);
     });
     [trunk, low, high].forEach((m) => { m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; this.group.add(m); });
   }

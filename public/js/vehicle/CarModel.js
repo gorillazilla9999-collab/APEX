@@ -123,8 +123,9 @@ export class CarModel {
 
   update(dt, v) {
     dt = Math.min(dt, 1 / 30); this.t += dt;
-    this.root.position.set(v.x, 0, v.z);
-    this.root.rotation.y = v.heading;
+    this.root.position.set(v.x, v.y ?? 0, v.z);
+    if (v.q) this.root.quaternion.set(v.q[0], v.q[1], v.q[2], v.q[3]); // full 3D orientation (slopes, jumps, flips)
+    else this.root.rotation.y = v.heading;
 
     // suspension: pitch from accel/brake, roll from cornering, heave from bumps
     this.pitch.step(-clamp(v.longAccel, -16, 16) * 0.0042, dt);

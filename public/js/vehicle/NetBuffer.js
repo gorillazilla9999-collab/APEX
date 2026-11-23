@@ -47,7 +47,7 @@ export class NetBuffer {
     if (rt >= lastS.t) { // ran out of samples: dead-reckon from the newest one
       const e = Math.min(rt - lastS.t, MAX_EXTRAPOLATE), moving = Math.hypot(lastS.vx, lastS.vz) > 0.05;
       fill(o, lastS, lastS, 0, 0);
-      if (moving) { o.x = lastS.x + lastS.vx * e; o.z = lastS.z + lastS.vz * e; o.h = lastS.h + lastS.yr * e; }
+      if (moving) { o.x = lastS.x + lastS.vx * e; o.z = lastS.z + lastS.vz * e; o.h = lastS.h + lastS.yr * e; o.y = Math.max(0, (lastS.y ?? 0) + (lastS.vy ?? 0) * e - 4.9 * e * e * (lastS.f & 32 ? 1 : 0)); }
       return o;
     }
     let i = n - 2; while (i > 0 && b[i].t > rt) i--;
@@ -62,7 +62,15 @@ function fill(o, a, c, k, T) {
     const k2 = k * k, k3 = k2 * k, h00 = 2 * k3 - 3 * k2 + 1, h10 = k3 - 2 * k2 + k, h01 = -2 * k3 + 3 * k2, h11 = k3 - k2;
     o.x = h00 * a.x + h10 * a.vx * T + h01 * c.x + h11 * c.vx * T;
     o.z = h00 * a.z + h10 * a.vz * T + h01 * c.z + h11 * c.vz * T;
-  } else { o.x = a.x; o.z = a.z; }
+    const ay = a.y ?? 0, cy = c.y ?? 0, avy = a.vy ?? 0, cvy = c.vy ?? 0;
+    o.y = h00 * ay + h10 * avy * T + h01 * cy + h11 * cvy * T;
+  } else { o.x = a.x; o.z = a.z; o.y = a.y ?? 0; }
+  o.vy = lerp(a.vy ?? 0, c.vy ?? 0);
+  if (a.q && c.q) { // normalised lerp of the orientation quaternions (short way round)
+    const s = a.q[0] * c.q[0] + a.q[1] * c.q[1] + a.q[2] * c.q[2] + a.q[3] * c.q[3] < 0 ? -1 : 1, q = (o.q ??= [0, 0, 0, 1]);
+    for (let i = 0; i < 4; i++) q[i] = a.q[i] + (s * c.q[i] - a.q[i]) * k;
+    const l = Math.hypot(q[0], q[1], q[2], q[3]) || 1; q[0] /= l; q[1] /= l; q[2] /= l; q[3] /= l;
+  } else o.q = a.q ?? null;
   o.h = a.h + angleDiff(c.h, a.h) * k;
   o.vx = lerp(a.vx, c.vx); o.vz = lerp(a.vz, c.vz);
   o.st = lerp(a.st, c.st); o.yr = lerp(a.yr, c.yr);
