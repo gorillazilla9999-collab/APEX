@@ -24,7 +24,7 @@ const gas = (c) => ({ throttle: c.airborne ? 0 : 1 });
 
 // ---- every elevated map: well-formed, starting grid flat, features do not overlap, no map becomes a mountain ----
 const elevMaps = MAPS.filter((m) => m.elev);
-assert.ok(elevMaps.length >= 8, 'several maps have elevation');
+assert.equal(elevMaps.length, MAPS.length, 'every map has elevation');
 for (const m of elevMaps) {
   const { track, terrain } = worldFor(m.id), L = track.length, tag = `[${m.id}]`, spans = [];
   for (const kind of ['hills', 'kickers', 'tables']) for (const f of m.elev[kind] ?? []) {
@@ -40,7 +40,7 @@ for (const m of elevMaps) {
   assert.ok(max <= 20, `${tag} max height ${max}`); assert.ok(maxSlope < 0.35, `${tag} climbs no steeper than ${maxSlope.toFixed(2)}`);
   console.log(`${m.id.padEnd(9)} max height ${max.toFixed(1)} m, steepest climb ${(Math.atan(maxSlope) * 57.3).toFixed(1)}°`);
 }
-{ const { terrain } = worldFor('sunset'); assert.ok(terrain.flat && terrain.height(5, 5) === 0); assert.deepEqual(terrain.normal(0, 0), [0, 1, 0]); }
+{ const { terrain } = worldFor('sunset', null); assert.ok(terrain.flat && terrain.height(5, 5) === 0); assert.deepEqual(terrain.normal(0, 0), [0, 1, 0]); }
 
 // ---- ground queries agree with the embankment formula the mesh is built from ----
 {
@@ -55,7 +55,7 @@ for (const m of elevMaps) {
 
 // ---- flat terrain behaves exactly like no terrain ----
 {
-  const w = worldFor('sunset'), a = new Vehicle(), b = new Vehicle(); a.reset(0, 0, 0); b.reset(0, 0, 0);
+  const w = worldFor('sunset', null), a = new Vehicle(), b = new Vehicle(); a.reset(0, 0, 0); b.reset(0, 0, 0);
   for (let i = 0; i < 1200; i++) {
     const inp = { ...NONE, throttle: 1, steer: Math.sin(i / 90), handbrake: i % 400 > 330, nitro: i > 600 };
     a.update(DT, inp); b.update(DT, inp, false, w.terrain);
@@ -69,7 +69,7 @@ for (const m of elevMaps) {
   const w = worldFor('highway'), L = w.track.length, dist = [];
   for (const v of [15, 35, 55]) {
     const car = spawn(w, 0.53 * L - 60, v); let maxY = 0, tilt = 0;
-    const log = run(w, car, 7, gas, { hook(c) { maxY = Math.max(maxY, c.y); tilt = Math.max(tilt, tiltDeg(c)); } });
+    const log = run(w, car, 7, gas, { stopOnLand: true, hook(c) { maxY = Math.max(maxY, c.y); tilt = Math.max(tilt, tiltDeg(c)); } });
     const land = log.find((e) => e.type === 'land');
     assert.ok(land && land.air > 0.8 && land.dist > 25, `v=${v}: real air time (${land?.air}s, ${land?.dist}m)`);
     assert.ok(maxY > 2.4, 'left the 2 m lip going up'); assert.ok(tilt < 15, 'stays level in flight'); assert.ok(land.impact < 12, 'survivable landing');
@@ -78,24 +78,38 @@ for (const m of elevMaps) {
   }
   assert.ok(dist[0] < dist[1] && dist[1] < dist[2], 'higher speed = longer jump');
 }
+// ---- every kicker and table-top on every map is jumpable at city and highway speed: lands wheels-down on the road, no crash ----
+{
+  let runs = 0;
+  for (const m of MAPS) {
+    const w = worldFor(m.id), L = w.track.length, E = w.terrain.elev;
+    for (const [kind, at] of [...E.kickers.map((f) => ['kicker', f.at]), ...E.tables.map((f) => ['table', f.at])]) for (const v of [25, 45]) {
+      const car = spawn(w, at * L - 100, v); let lat = 0, crashed = false;
+      const log = run(w, car, 9, (c) => ({ throttle: !c.airborne && c.speed < v ? 1 : 0 }), { stopOnLand: true, hook(c) { lat = Math.max(lat, Math.abs(w.terrain._locate(c.x, c.z).lat)); crashed ||= c.crashed; } });
+      const ev = log.find((e) => e.type === 'land'); runs++;
+      assert.ok(ev && !crashed && lat < w.terrain.barrierOff - 0.5 && ev.impact < 14, `${m.id} ${kind} @${at} v=${v}: lands cleanly on the road`);
+    }
+  }
+  console.log(`${runs} jump runs across ${MAPS.length} maps: all land cleanly`);
+}
 // ---- table-top ----
 {
   const w = worldFor('highway'), L = w.track.length, car = spawn(w, 0.06 * L - 80, 20); let air = 0;
-  const log = run(w, car, 6, gas, { hook(c) { if (c.airborne) air += DT; } });
+  const log = run(w, car, 6, gas, { stopOnLand: true, hook(c) { if (c.airborne) air += DT; } });
   assert.ok(air > 0.8 && log.some((e) => e.type === 'land') && car.mode === 'ground' && !log.some((e) => e.type === 'crash'), 'table-top jump lands cleanly');
 }
 // ---- air control: barrel roll (A/D), flips (W/S) ----
 {
   const w = worldFor('saltflats'), L = w.track.length, at = 0.255 * L - 150;
   let car = spawn(w, at, 30);
-  let log = run(w, car, 7, (c) => ({ throttle: c.airborne ? 0 : 1, steer: c.airborne ? 1 : 0 }));
+  let log = run(w, car, 7, (c) => ({ throttle: c.airborne ? 0 : 1, steer: c.airborne ? 1 : 0 }), { stopOnLand: true });
   const roll = log.find((e) => e.type === 'land');
   assert.ok(roll && Math.abs(roll.flipsRoll) > 0.85 && car.mode === 'ground' && tiltDeg(car) < 20, 'hold D in the air: one clean barrel roll');
   car = spawn(w, at, 30); log = run(w, car, 7, (c) => ({ throttle: c.airborne ? 0 : 1, brake: c.airborne ? 1 : 0 }));
   assert.ok(log.some((e) => e.type === 'crash') || car.tumble, 'hold S all the way: over-rotates and crashes');
   car = spawn(w, at, 30); log = run(w, car, 7, (c) => ({ throttle: 1 }));
   assert.ok(car.tumble || log.some((e) => e.type === 'crash'), 'hold W in the air: nose-dive into the road');
-  car = spawn(w, at, 30); log = run(w, car, 7, (c) => ({ throttle: c.airborne ? 0 : 1, handbrake: c.airborne }));
+  car = spawn(w, at, 30); log = run(w, car, 7, (c) => ({ throttle: c.airborne ? 0 : 1, handbrake: c.airborne }), { stopOnLand: true });
   assert.ok(car.mode === 'ground' && !log.some((e) => e.type === 'crash'), 'handbrake auto-levels the car');
 }
 // ---- crashes: dropped upside-down comes to rest and asks for a reset; dropped on its wheels it just lands ----
@@ -104,7 +118,7 @@ for (const m of elevMaps) {
   Object.assign(car, { mode: 'air', tumble: true, y: 4, q: [1, 0, 0, 0], clearT: 1, w: [0.5, 0.2, 0.3] }); car._comFromOrigin();
   for (let t = 0; t < 900 && !car.needsReset; t++) car.update(DT, NONE, false, w.terrain);
   assert.ok(car.needsReset && car.speed < 0.5 && car.upY < -0.5 && car.y > -0.01, 'upside-down car rests on its roof and flags reset');
-  car = spawn(w, 300, 20); Object.assign(car, { mode: 'air', y: 5, clearT: 1, air: { t: 0, x0: car.x, z0: car.z, pitch: 0, roll: 0 } }); car._comFromOrigin();
+  car = spawn(w, 450, 20); Object.assign(car, { mode: 'air', y: 5, clearT: 1, air: { t: 0, x0: car.x, z0: car.z, pitch: 0, roll: 0 } }); car._comFromOrigin();
   const log = run(w, car, 3, {}, { keepLane: false });
   assert.ok(car.mode === 'ground' && Math.abs(car.y) < 0.05 && log.some((e) => e.type === 'land' && e.impact > 7), 'dropping 5 m on the wheels is a hard but clean landing');
   const R = new Vehicle(); R.reset(10, 10, 1, 3); assert.ok(!R.needsReset && R.y === 3 && R.mode === 'ground', 'reset clears crash state');

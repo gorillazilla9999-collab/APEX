@@ -27,6 +27,8 @@ const PTS = [
   [-0.95, 0.95, 1.0, 1], [0.95, 0.95, 1.0, 1], [-0.95, 0.95, -1.0, 1], [0.95, 0.95, -1.0, 1], // flanks
 ];
 const Y_UP = [0, 1, 0];
+const AIR_PITCH_ACC = 6.0, AIR_MAX_PITCH = 4.6; // rad/s², rad/s  (a full flip takes ~1.4 s of air)
+const AIR_ROLL_ACC = 8.5, AIR_MAX_ROLL = 5.2;
 
 export class Vehicle {
   /** `tuning` = TUNING scaled per car (see vehicle/cars.js). */
@@ -248,12 +250,16 @@ export class Vehicle {
     this._airSync();
   }
 
-  /** Mid-air steering: W / S pitch (flip), A / D roll (barrel roll), handbrake levels the car out. */
+  /**
+   * Mid-air control: W / S pitch (flip), A / D roll (barrel roll), handbrake levels the car out.
+   * Inputs are torques (angular acceleration, capped at a max spin rate), not target rates: the car builds up rotation, keeps
+   * spinning when you let go (angular momentum is conserved) and needs opposite input to stop, like a real body in flight.
+   */
   _airControl(dt, inp, L, U, F) {
     const w = this.w, pitchIn = (inp.throttle ? 1 : 0) - (inp.brake ? 1 : 0), roll = inp.steer || 0;
     const wl = dot(w, L), wf = dot(w, F);
-    if (pitchIn) { const d = clamp(pitchIn * 4.2 - wl, -11 * dt, 11 * dt); w[0] += L[0] * d; w[1] += L[1] * d; w[2] += L[2] * d; }
-    if (roll) { const d = clamp(roll * 4.8 - wf, -11 * dt, 11 * dt); w[0] += F[0] * d; w[1] += F[1] * d; w[2] += F[2] * d; }
+    if (pitchIn && pitchIn * wl < AIR_MAX_PITCH) { const d = pitchIn * AIR_PITCH_ACC * dt; w[0] += L[0] * d; w[1] += L[1] * d; w[2] += L[2] * d; }
+    if (roll && roll * wf < AIR_MAX_ROLL) { const d = roll * AIR_ROLL_ACC * dt; w[0] += F[0] * d; w[1] += F[1] * d; w[2] += F[2] * d; }
     if (inp.handbrake) { // auto-level: upright, and stop the spin
       const ax = cross(U, Y_UP), k = Math.exp(-3.5 * dt);
       for (let i = 0; i < 3; i++) w[i] = (w[i] + ax[i] * 7 * dt) * k;
@@ -262,8 +268,8 @@ export class Vehicle {
     const sp = Math.hypot(this.vx, this.vy, this.vz);
     if (!pitchIn && sp > 8) { // weathervane: the nose gently follows the flight path, so un-steered jumps land flat-ish
       const ax = cross(F, [this.vx / sp, this.vy / sp, this.vz / sp]);
-      for (let i = 0; i < 3; i++) w[i] += ax[i] * 2.2 * dt;
-      const cut = dot(w, L) * (1 - Math.exp(-2.6 * dt)); w[0] -= L[0] * cut; w[1] -= L[1] * cut; w[2] -= L[2] * cut;
+      for (let i = 0; i < 3; i++) w[i] += ax[i] * 1.6 * dt;
+      const cut = dot(w, L) * (1 - Math.exp(-1.8 * dt)); w[0] -= L[0] * cut; w[1] -= L[1] * cut; w[2] -= L[2] * cut;
     }
     if (!roll) { const cut = wf * (1 - Math.exp(-0.25 * dt)); w[0] -= F[0] * cut; w[1] -= F[1] * cut; w[2] -= F[2] * cut; }
   }
@@ -334,7 +340,7 @@ export class Vehicle {
 
   /** Wheels are down: hand the body back to the arcade driving model. */
   _land(T) {
-    const F = qRot(this.q, [0, 0, 1]); if (Math.hypot(F[0], F[2]) > 0.2) this.heading = Math.atan2(F[0], F[2]);
+    const F0 = qRot(this.q, [0, 0, 1]); if (Math.hypot(F0[0], F0[2]) > 0.2) this.heading = Math.atan2(F0[0], F0[2]);
     this._originFromCom();
     const p = this._plane(T), nl = Math.hypot(p.sF, p.sR, 1), N = [0, 1, 0];
     { // ground normal from the tyre plane (rise p.sF along the heading, p.sR to its right)
@@ -343,7 +349,11 @@ export class Vehicle {
     }
     const vn = this.vx * N[0] + this.vy * N[1] + this.vz * N[2], impact = Math.max(0, -vn);
     if (vn < 0) { this.vx -= N[0] * vn; this.vy -= N[1] * vn; this.vz -= N[2] * vn; }
-    const scrub = impact > 7 ? 1 - Math.min(0.3, (impact - 7) * 0.015) : 1; this.vx *= scrub; this.vz *= scrub; // hard landings cost speed
+    // Landing loss: a hard touchdown bottoms the suspension, and a nose-high / nose-low / canted one slaps down on the wrong tyres.
+    const F = qRot(this.q, [0, 0, 1]), Lf = qRot(this.q, [1, 0, 0]);
+    const mis = Math.abs(Math.asin(clamp(dot(F, N), -1, 1))) + 0.6 * Math.abs(Math.asin(clamp(dot(Lf, N), -1, 1)));
+    const scrub = (impact > 7 ? 1 - Math.min(0.3, (impact - 7) * 0.015) : 1) * (1 - Math.min(0.3, mis * impact * 0.03));
+    this.vx *= scrub; this.vz *= scrub;
     this.yawRate = clamp(this.w[1], -2.4, 2.4);
     this.sF = p.sF; this.sR = p.sR; this.y = p.gnd; this.vy = 0;
     const qd = qMul(qConj(this._groundQ(p.sF, p.sR)), this.q); this.qd = qd[3] < 0 ? [-qd[0], -qd[1], -qd[2], -qd[3]] : qd;

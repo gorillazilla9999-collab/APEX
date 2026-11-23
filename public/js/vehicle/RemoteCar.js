@@ -35,7 +35,7 @@ export class RemoteCar {
     if (!s) return v;
     const first = !this.car.root.visible;
     const prevVF = v.vF;
-    v.x = s.x; v.z = s.z; v.y = s.y ?? 0; v.q = s.q ?? null; v.heading = s.h; v.vx = s.vx; v.vz = s.vz;
+    v.x = s.x; v.z = s.z; v.y = s.y ?? 0; v.vy = s.vy ?? 0; v.q = s.q ?? null; v.heading = s.h; v.vx = s.vx; v.vz = s.vz;
     v.vF = s.vx * Math.sin(s.h) + s.vz * Math.cos(s.h);
     v.speed = Math.hypot(s.vx, s.vz);
     v.steer = s.st; v.yawRate = s.yr;

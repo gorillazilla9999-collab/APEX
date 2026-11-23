@@ -5,6 +5,7 @@
 //   hills:   { at, len, hold?, h }       smooth climb over `len` m, optional plateau of `hold` m, then back down over `len` m
 //   kickers: { at, len, h }              straight ramp up to height `h`, then a sheer drop (the lip): a proper jump
 //   tables:  { at, up, top, down, h }    ramp up, flat top, landing ramp down: a table-top jump
+//   rollers: { at, count, len, h }       `count` short bumps in a row (whoops): shorthand for `count` hills of length `len`
 // `at` is a 0..1 fraction of the lap. Beside the road the ground slopes away to y = 0 (an embankment), so an elevated road
 // is a raised causeway; the barriers stand on its edge.
 
@@ -15,9 +16,18 @@ export const DROP = 0.6;          // how many metres a kicker's lip takes to fal
 const smooth = (k) => k * k * (3 - 2 * k);
 const ease = (u) => 0.5 - 0.5 * Math.cos(Math.PI * u);
 
+/** The elev block with `rollers` expanded into plain hills (so everything downstream only sees hills / kickers / tables). */
+export function expandElev(elev, length) {
+  if (!elev) return null;
+  const hills = [...(elev.hills ?? [])];
+  for (const r of elev.rollers ?? []) for (let i = 0; i < r.count; i++) hills.push({ at: r.at + (i * 2 * r.len) / length, len: r.len, h: r.h });
+  return { hills, kickers: elev.kickers ?? [], tables: elev.tables ?? [] };
+}
+
 /** Road height (m) along arc length s for an `elev` block. */
 export function makeProfile(elev, length) {
   if (!elev) return () => 0;
+  elev = expandElev(elev, length);
   const F = [];
   for (const f of elev.hills ?? []) F.push({ t: 0, s0: f.at * length, a: f.len, hold: f.hold ?? 0, h: f.h });
   for (const f of elev.kickers ?? []) F.push({ t: 1, s0: f.at * length, a: f.len, h: f.h });
@@ -51,7 +61,7 @@ export class Terrain {
   constructor(track, elev = null) {
     this.t = track; this.n = track.n; this.ds = track.ds; this.length = track.length;
     this.half = track.roadWidth / 2; this.barrierOff = this.half + BARRIER_GAP;
-    this.elev = elev; this.flat = !elev; this.profile = makeProfile(elev, this.length);
+    this.elev = expandElev(elev, this.length); this.flat = !elev; this.profile = makeProfile(elev, this.length);
     this.hint = 0; this.near = { s: 0, lat: 0, i: 0 };
     // how far above the ground a car must be before nothing on it can touch the terrain (covers the tallest ramp and steep slopes)
     this.margin = 3.8 + Math.max(0, ...(elev?.kickers ?? []).map((f) => f.h), ...(elev?.tables ?? []).map((f) => f.h)) + (elev?.hills?.length ? 1.5 : 0);

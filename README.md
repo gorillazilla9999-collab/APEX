@@ -57,17 +57,19 @@ Pick one with the **Map** button on the main menu (your choice is remembered).
 The 20 newer maps reuse the five existing looks with brand-new track layouts; they range from near-straight ovals to turn-heavy mazes.
 
 ## Elevation, jumps and flips
-Ten maps now have real elevation (`elev` in `maps.js`): **Highway One, Salt Flats, Glacier Oval, Coastal Sweep, Dune Canyon, Cobra, Frostbite Pass, Alpine Esses, Fjord, Avalanche Run**. The road is a raised causeway on grass embankments, with the barriers on its edge.
-- **Hills** slow you on the way up and speed you on the way down (gravity along the slope).
-- **Kickers** (ramp, then a sheer lip, marked with yellow/black hazard stripes) and **table-tops** launch you. Air time and distance scale with speed, so hitting one flat out is very different from rolling over it.
-- **Whoops** (Dune Canyon): three short bumps that kick the car off the ground at speed.
-- **In the air** the car is a proper 3D rigid body (centre of mass, inertia, gravity, drag). W/S pitch it (front/back flip), A/D roll it, SPACE levels it out. With no input the nose gently follows the flight path, so unsteered jumps land flat.
-- **Landing:** wheels-first and roughly level hands control back to the driving model (a hard landing costs speed, shakes the camera and thumps). Anything else (roof, nose, side) tumbles: bodywork and tyre contacts are resolved with impulses, so the car really rolls and slides to rest. A car that ends up on its roof, or stuck, resets itself after ~2 s (or press **R**).
+**All 25 maps** now have elevation (`elev` in `maps.js`). The road is a raised causeway on grass embankments, with the barriers on its edge.
+- **Hills** slow you on the way up and speed you on the way down (gravity along the slope). Alpine Esses climbs 18 m, Frostbite Pass has a 14 m summit.
+- **Kickers** (ramp, then a sheer lip, marked with yellow/black hazard stripes) and **table-tops** sit on the straights. Air time and distance scale with speed (about 50 m at a roll, 80+ m flat out), so hitting one flat out is very different from rolling over it.
+- **Rollers / whoops**: runs of short bumps that kick the car off the ground at speed.
+- **Launching** is ballistic: you leave the road when it falls away faster than gravity can pull you down (crests, lips), with the vertical speed the slope gave you. Leaving a lip, the car pivots on its rear tyres, so the nose dips as it goes.
+- **In the air** the car is a proper 3D rigid body (centre of mass, inertia, gravity, drag). W/S and A/D apply *torque*: rotation builds up, keeps going when you let go (angular momentum) and needs opposite input to stop. SPACE levels the car out. With no input the nose gently follows the flight path.
+- **Landing:** wheels-first and roughly level hands control back to the driving model. A hard or misaligned touchdown (nose-high, tilted) bottoms the suspension and costs speed, shakes the camera and thumps. Anything else (roof, nose, side) tumbles: bodywork and tyre contacts are resolved with impulses, so the car really rolls and slides to rest. A car on its roof, or stuck, resets itself after ~2 s (or press **R**).
+- The suspension reacts: it squashes at ramp bases and landings, unloads over crests and extends in the air.
 - Toasts report big air time and completed flips / rolls ("FRONT FLIP · 1.6s").
 - Walls and trees have a height, so a car that is airborne can clear a barrier.
 - Online: each car sends its height, vertical speed and orientation, so other players see jumps and flips (`NetBuffer` interpolates them).
 
-**Adding elevation to a map:** add `elev: { hills: [...], kickers: [...], tables: [...] }` (format in `world/terrain.js`; `at` is a 0..1 lap fraction). Put kickers on straights with 100 m of run-up and 150 m of landing, and keep the last 150 m before the line flat (the grid is there). `npm test` checks all of this.
+**Adding elevation to a map:** add `elev: { hills: [...], kickers: [...], tables: [...] }` (format in `world/terrain.js`; `at` is a 0..1 lap fraction; `rollers: [{ at, count, len, h }]` is shorthand for a run of bumps). Put kickers on straights with 100 m of run-up and 150 m of landing, and keep the last 150 m before the line flat (the grid is there). `npm test` checks all of this, and drives every kicker and table-top on every map to make sure it lands cleanly.
 
 Lap-time balance (`tests/cars.test.mjs`) still runs on the flat tracks: the AI ignores terrain, so elevated maps are for fun, not tuned for car balance.
 

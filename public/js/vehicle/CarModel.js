@@ -29,7 +29,7 @@ export class CarModel {
     this.root = new THREE.Group();
     this.body = new THREE.Group();
     this.root.add(this.body);
-    this.pitch = new Spring(); this.roll = new Spring(); this.heave = new Spring();
+    this.pitch = new Spring(); this.roll = new Spring(); this.heave = new Spring(); this.droop = new Spring(); this.pvy = 0; this.ay = 0;
     this.spin = 0; this.t = 0;
 
     const paint = new THREE.MeshPhysicalMaterial({ color, metalness: 0.55, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.04 });
@@ -131,9 +131,13 @@ export class CarModel {
     this.pitch.step(-clamp(v.longAccel, -16, 16) * 0.0042, dt);
     this.roll.step(-clamp(v.latAccel, -26, 26) * 0.0042, dt);
     if (v.onGrass && v.speed > 3) this.heave.v += (Math.random() - 0.5) * v.speed * 0.012;
-    this.heave.step(0, dt, 140, 11);
+    // vertical loading: ramp entries / landings squash the suspension, crests unload it, and in the air the springs extend (wheels hang low)
+    const vy = v.vy ?? 0, ay = clamp((vy - this.pvy) / dt, -40, 40); this.pvy = vy;
+    this.ay += (ay - this.ay) * (1 - Math.exp(-dt * 18));
+    this.heave.step(v.airborne ? 0 : -this.ay * 0.003, dt, 140, 11);
+    this.droop.step(v.airborne ? 0.09 : 0, dt, 90, 9);
     this.body.rotation.set(this.pitch.x, 0, this.roll.x);
-    this.body.position.y = this.heave.x;
+    this.body.position.y = this.heave.x + this.droop.x;
 
     // wheels: roll + front steer; rear locks under handbrake
     this.spin += (v.vF * dt) / R;

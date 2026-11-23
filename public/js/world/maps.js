@@ -12,6 +12,8 @@ export const DEFAULT_MAP = 'sunset';
 
 const SUNSET = {
   id: 'sunset', name: 'SUNSET CIRCUIT', tag: 'Golden-hour city loop. Fast, flowing, forgiving.', difficulty: 2,
+  elev: { hills: [{ at: 0.12, len: 90, h: 4 }, { at: 0.45, len: 80, h: 3.5 }, { at: 0.7, len: 100, h: 5 }],
+    rollers: [{ at: 0.3, count: 3, len: 12, h: 1.2 }] },
   roadWidth: 16, samples: 900, seed: 7,
   control: [[0, 0], [140, -8], [280, 40], [380, 150], [360, 290], [240, 360], [110, 320],
     [40, 430], [-90, 480], [-230, 420], [-280, 290], [-200, 190], [-250, 70], [-150, -40]],
@@ -39,6 +41,8 @@ const SUNSET = {
 
 const NEON = {
   id: 'neon', name: 'NEON HARBOR', tag: 'Night street circuit between container stacks. Tight and technical.', difficulty: 4,
+  elev: { hills: [{ at: 0.15, len: 60, h: 3 }, { at: 0.7, len: 70, h: 3.5 }],
+    rollers: [{ at: 0.5, count: 3, len: 10, h: 1.0 }] },
   roadWidth: 15, seed: 21,
   control: [[0, 0], [110, 22], [230, -28], [330, 10], [375, 90], [330, 170], [310, 250], [360, 310], [375, 390], [310, 445],
     [200, 440], [140, 385], [70, 390], [20, 445], [-70, 440], [-140, 390], [-150, 300], [-135, 200], [-145, 100], [-85, 35]],
@@ -66,6 +70,8 @@ const NEON = {
 
 const DUNES = {
   id: 'dunes', name: 'DUNE CANYON', tag: 'Wide desert sweepers over rolling dunes, with a set of whoops.', difficulty: 3,
+  elev: { hills: [{ at: 0.08, len: 70, h: 3.5 }, { at: 0.2, len: 90, h: 6 }, { at: 0.35, len: 60, h: 4 }, { at: 0.5, len: 100, h: 8, hold: 40 }, { at: 0.75, len: 70, h: 5 }],
+    rollers: [{ at: 0.44, count: 3, len: 12, h: 1.1 }, { at: 0.62, count: 3, len: 12, h: 1.1 }, { at: 0.88, count: 4, len: 10, h: 1.2 }] },
   roadWidth: 18, seed: 5,
   control: [[0, 0], [180, 20], [360, -30], [520, 40], [600, 170], [560, 320], [430, 380], [330, 300], [230, 330], [200, 450],
     [100, 540], [-60, 520], [-150, 420], [-120, 300], [-220, 220], [-250, 90], [-150, -20]],
@@ -84,12 +90,12 @@ const DUNES = {
     mini: { bg: '#3a2c1a', road: '#f4e3c0' },
   },
   props: ['dunes', 'rocks', 'cacti'],
-  elev: { hills: [{ at: 0.08, len: 70, h: 3.5 }, { at: 0.2, len: 90, h: 6 }, { at: 0.35, len: 60, h: 4 }, { at: 0.5, len: 100, hold: 40, h: 8 },
-    { at: 0.62, len: 12, h: 1.1 }, { at: 0.6296, len: 12, h: 1.1 }, { at: 0.6392, len: 12, h: 1.1 }, { at: 0.75, len: 70, h: 5 }] } /* the three 12 m bumps are whoops */,
 };
 
 const FROST = {
   id: 'frost', name: 'FROSTBITE PASS', tag: 'Snowy mountain pass that climbs to a summit. Hairpins, heavy fog: brake early.', difficulty: 5,
+  elev: { hills: [{ at: 0.1, len: 150, h: 14, hold: 150 }, { at: 0.3, len: 70, h: 5 }, { at: 0.55, len: 110, h: 8 }, { at: 0.77, len: 90, h: 6 }],
+    rollers: [{ at: 0.42, count: 3, len: 14, h: 1.4 }] },
   roadWidth: 15, seed: 33,
   control: [[0, 0], [120, -20], [220, -90], [330, -70], [390, 20], [340, 115], [230, 125], [170, 200], [225, 280], [330, 300],
     [395, 380], [340, 470], [220, 480], [140, 420], [60, 450], [-30, 510], [-140, 480], [-180, 380], [-140, 310], [-195, 235],
@@ -110,11 +116,13 @@ const FROST = {
     mini: { bg: '#1c2733', road: '#ffffff' },
   },
   props: ['snowfall'],
-  elev: { hills: [{ at: 0.10, len: 150, hold: 150, h: 14 }, { at: 0.55, len: 110, h: 8 }, { at: 0.77, len: 90, h: 6 }] },
 };
 
 const SPEEDWAY = {
   id: 'speedway', name: 'GRAND SPEEDWAY', tag: 'Huge, wide oval with grandstands. Pure top speed and nitro.', difficulty: 1,
+  elev: { kickers: [{ at: 0.09, len: 18, h: 2.2 }, { at: 0.68, len: 18, h: 2.2 }],
+    tables: [{ at: 0.6, up: 16, top: 22, down: 22, h: 2.2 }],
+    hills: [{ at: 0.33, len: 90, h: 4 }, { at: 0.85, len: 60, h: 3 }] },
   roadWidth: 22, seed: 11,
   control: [[0, 0], [200, 0], [400, -10], [560, 20], [650, 100], [640, 220], [540, 290], [380, 300], [200, 300], [60, 290],
     [-60, 270], [-140, 200], [-140, 90], [-80, 20]],
@@ -153,9 +161,12 @@ function retheme(theme) {
 
 const HIGHWAY = {
   id: 'highway', name: 'HIGHWAY ONE', tag: 'Two huge straights with a kicker and a table-top jump. Hit them flat out.', difficulty: 1,
+  elev: { kickers: [{ at: 0.17, len: 16, h: 2.0 }, { at: 0.53, len: 16, h: 2.0 }, { at: 0.7, len: 20, h: 2.6 }],
+    tables: [{ at: 0.06, up: 18, top: 22, down: 22, h: 2.4 }],
+    hills: [{ at: 0.31, len: 70, h: 3.5 }, { at: 0.82, len: 80, h: 4 }],
+    rollers: [{ at: 0.62, count: 3, len: 8, h: 0.9 }] },
   roadWidth: 20, seed: 40, theme: retheme(SUNSET.theme),
   props: [],
-  elev: { kickers: [{ at: 0.53, len: 16, h: 2.0 }], tables: [{ at: 0.06, up: 18, top: 22, down: 22, h: 2.4 }], hills: [{ at: 0.31, len: 70, h: 3.5 }, { at: 0.82, len: 80, h: 4 }] },
   control: [
     [0, 0], [68, 0], [204, 0], [340, 0], [476, 0], [612, 0],
     [646, 5], [677, 21], [701, 45], [717, 76], [722, 110], [717, 144],
@@ -168,9 +179,12 @@ const HIGHWAY = {
 
 const SALTFLATS = {
   id: 'saltflats', name: 'SALT FLATS', tag: 'An enormous bowl with two big kickers. Hold the throttle and go airborne.', difficulty: 1,
+  elev: { kickers: [{ at: 0.255, len: 18, h: 2.4 }, { at: 0.84, len: 20, h: 2.8 }],
+    tables: [{ at: 0.31, up: 18, top: 24, down: 24, h: 2.6 }],
+    hills: [{ at: 0.02, len: 80, h: 3 }, { at: 0.5, len: 150, h: 6 }, { at: 0.63, len: 100, h: 4 }],
+    rollers: [{ at: 0.9, count: 4, len: 10, h: 1.0 }] },
   roadWidth: 26, seed: 41, theme: DUNES.theme,
   props: DUNES.props,
-  elev: { kickers: [{ at: 0.255, len: 18, h: 2.4 }, { at: 0.84, len: 20, h: 2.8 }], hills: [{ at: 0.5, len: 150, h: 6 }, { at: 0.63, len: 100, h: 4 }] },
   control: [
     [0, 0], [79, 29], [189, 137], [209, 273], [143, 396], [33, 488],
     [-93, 557], [-235, 607], [-398, 622], [-561, 588], [-694, 508], [-781, 398],
@@ -181,9 +195,12 @@ const SALTFLATS = {
 
 const GLACIER = {
   id: 'glacier', name: 'GLACIER OVAL', tag: 'A wide frozen oval with a table-top, a kicker and a couple of rises.', difficulty: 2,
+  elev: { kickers: [{ at: 0.46, len: 16, h: 2.2 }, { at: 0.845, len: 14, h: 1.8 }],
+    tables: [{ at: 0.4, up: 16, top: 20, down: 20, h: 2.0 }],
+    hills: [{ at: 0.07, len: 90, h: 3.5 }, { at: 0.68, len: 100, h: 5 }],
+    rollers: [{ at: 0.54, count: 3, len: 9, h: 1.0 }, { at: 0.89, count: 3, len: 8, h: 1.0 }] },
   roadWidth: 18, seed: 42, theme: FROST.theme,
   props: FROST.props,
-  elev: { tables: [{ at: 0.40, up: 16, top: 20, down: 20, h: 2.0 }], kickers: [{ at: 0.845, len: 14, h: 1.8 }], hills: [{ at: 0.07, len: 90, h: 3.5 }, { at: 0.68, len: 100, h: 5 }] },
   control: [
     [0, 0], [-71, -1], [-197, -30], [-281, -79], [-323, -133], [-339, -188],
     [-335, -244], [-293, -301], [-200, -348], [-68, -371], [71, -371], [198, -355],
@@ -194,6 +211,10 @@ const GLACIER = {
 
 const DOCKSIDE = {
   id: 'dockside', name: 'DOCKSIDE DRAG', tag: 'Long harbour straights with one lazy kink in each. Mostly flat out.', difficulty: 2,
+  elev: { kickers: [{ at: 0.25, len: 16, h: 2.0 }, { at: 0.76, len: 20, h: 2.4 }],
+    tables: [{ at: 0.35, up: 16, top: 20, down: 20, h: 2.2 }],
+    hills: [{ at: 0.6, len: 70, h: 3.5 }],
+    rollers: [{ at: 0.44, count: 4, len: 10, h: 1.0 }, { at: 0.84, count: 4, len: 10, h: 1.0 }] },
   roadWidth: 18, seed: 43, theme: NEON.theme,
   props: NEON.props,
   control: [
@@ -208,6 +229,9 @@ const DOCKSIDE = {
 
 const TRIOVAL = {
   id: 'trioval', name: 'TRI-OVAL', tag: 'A rounded triangle of wide, fast bends. Easy to learn, hard to master.', difficulty: 1,
+  elev: { kickers: [{ at: 0.12, len: 16, h: 2.0 }, { at: 0.46, len: 16, h: 2.0 }],
+    tables: [{ at: 0.8, up: 14, top: 18, down: 18, h: 1.8 }],
+    hills: [{ at: 0.32, len: 100, h: 4 }, { at: 0.65, len: 80, h: 4 }] },
   roadWidth: 24, seed: 44, theme: SPEEDWAY.theme,
   props: SPEEDWAY.props,
   control: [
@@ -220,9 +244,12 @@ const TRIOVAL = {
 
 const COASTAL = {
   id: 'coastal', name: 'COASTAL SWEEP', tag: 'Smooth seaside loop with rolling hills, a clifftop plateau and a small jump.', difficulty: 2,
+  elev: { kickers: [{ at: 0.015, len: 14, h: 1.6 }],
+    tables: [{ at: 0.62, up: 14, top: 18, down: 18, h: 1.8 }],
+    hills: [{ at: 0.3, len: 120, h: 6 }, { at: 0.45, len: 130, h: 9, hold: 60 }, { at: 0.72, len: 80, h: 4 }],
+    rollers: [{ at: 0.08, count: 4, len: 9, h: 1.0 }] },
   roadWidth: 18, seed: 45, theme: retheme(SUNSET.theme),
   props: [],
-  elev: { kickers: [{ at: 0.015, len: 14, h: 1.6 }], hills: [{ at: 0.30, len: 120, h: 6 }, { at: 0.45, len: 130, hold: 60, h: 9 }, { at: 0.72, len: 80, h: 4 }] },
   control: [
     [0, 0], [80, -6], [240, -19], [328, -21], [416, -11], [515, 6],
     [614, 24], [681, 47], [737, 90], [776, 149], [779, 155], [791, 203],
@@ -235,6 +262,9 @@ const COASTAL = {
 
 const TEARDROP = {
   id: 'teardrop', name: 'TEARDROP VALLEY', tag: 'One huge sweeper into a tightening funnel that ends in a hard turn.', difficulty: 3,
+  elev: { kickers: [{ at: 0.66, len: 16, h: 2.0 }],
+    hills: [{ at: 0.1, len: 70, h: 4 }, { at: 0.4, len: 90, h: 5 }],
+    rollers: [{ at: 0.74, count: 3, len: 9, h: 1.0 }] },
   roadWidth: 18, seed: 46, theme: DUNES.theme,
   props: DUNES.props,
   control: [
@@ -247,6 +277,10 @@ const TEARDROP = {
 
 const DSHAPE = {
   id: 'dshape', name: 'THE D', tag: 'Flat-out D-shaped circuit with a wiggle on the back straight and tight corners behind the pits.', difficulty: 2,
+  elev: { kickers: [{ at: 0.2, len: 18, h: 2.2 }],
+    tables: [{ at: 0.29, up: 16, top: 20, down: 20, h: 2.2 }],
+    hills: [{ at: 0.45, len: 80, h: 4 }, { at: 0.8, len: 70, h: 4 }],
+    rollers: [{ at: 0.62, count: 3, len: 10, h: 1.0 }] },
   roadWidth: 20, seed: 47, theme: SPEEDWAY.theme,
   props: SPEEDWAY.props,
   control: [
@@ -261,6 +295,9 @@ const DSHAPE = {
 
 const DOWNTOWN = {
   id: 'downtown', name: 'DOWNTOWN L', tag: 'L-shaped city blocks: long straights, hard 90-degree corners.', difficulty: 3,
+  elev: { kickers: [{ at: 0.08, len: 16, h: 1.8 }, { at: 0.78, len: 16, h: 2.0 }],
+    hills: [{ at: 0.12, len: 60, h: 3 }, { at: 0.28, len: 70, h: 4 }, { at: 0.5, len: 60, h: 3.5 }],
+    rollers: [{ at: 0.84, count: 3, len: 9, h: 1.0 }] },
   roadWidth: 15, seed: 48, theme: retheme(SUNSET.theme),
   props: [],
   control: [
@@ -277,6 +314,8 @@ const DOWNTOWN = {
 
 const FOURLEAF = {
   id: 'fourleaf', name: 'FOUR LEAF', tag: 'Four rounded lobes, four fast bends in, four flowing bends out.', difficulty: 3,
+  elev: { hills: [{ at: 0.05, len: 80, h: 3.5 }, { at: 0.22, len: 90, h: 5 }, { at: 0.4, len: 80, h: 4 }, { at: 0.58, len: 90, h: 5 }, { at: 0.76, len: 80, h: 4 }],
+    rollers: [{ at: 0.88, count: 3, len: 10, h: 1.0 }] },
   roadWidth: 16, seed: 49, theme: retheme(SUNSET.theme),
   props: [],
   control: [
@@ -290,6 +329,10 @@ const FOURLEAF = {
 
 const BOOMERANG = {
   id: 'boomerang', name: 'BOOMERANG', tag: 'Fast V-shaped circuit with a tight elbow and a long return leg.', difficulty: 3,
+  elev: { kickers: [{ at: 0.09, len: 16, h: 2.0 }, { at: 0.56, len: 18, h: 2.2 }],
+    tables: [{ at: 0.38, up: 16, top: 22, down: 22, h: 2.2 }],
+    hills: [{ at: 0.27, len: 80, h: 4 }, { at: 0.72, len: 80, h: 4 }],
+    rollers: [{ at: 0.43, count: 4, len: 10, h: 1.0 }, { at: 0.9, count: 3, len: 9, h: 1.0 }] },
   roadWidth: 20, seed: 50, theme: DUNES.theme,
   props: DUNES.props,
   control: [
@@ -306,6 +349,10 @@ const BOOMERANG = {
 
 const PAPERCLIP = {
   id: 'paperclip', name: 'PAPERCLIP', tag: 'Three long straights joined by hairpins. Brake late, exit early.', difficulty: 2,
+  elev: { kickers: [{ at: 0.19, len: 16, h: 2.0 }, { at: 0.61, len: 20, h: 2.4 }],
+    tables: [{ at: 0.42, up: 16, top: 22, down: 22, h: 2.2 }],
+    hills: [{ at: 0.29, len: 60, h: 4.5 }, { at: 0.8, len: 70, h: 5 }],
+    rollers: [{ at: 0.68, count: 4, len: 10, h: 1.0 }] },
   roadWidth: 20, seed: 51, theme: SPEEDWAY.theme,
   props: SPEEDWAY.props,
   control: [
@@ -324,6 +371,10 @@ const PAPERCLIP = {
 
 const CROSSTOWN = {
   id: 'crosstown', name: 'CROSSTOWN', tag: 'T-shaped street circuit: a run of 90-degree corners around the stem.', difficulty: 4,
+  elev: { kickers: [{ at: 0.06, len: 16, h: 2.0 }],
+    tables: [{ at: 0.20, up: 14, top: 18, down: 18, h: 1.8 }],
+    hills: [{ at: 0.33, len: 60, h: 3.5 }, { at: 0.6, len: 70, h: 4 }],
+    rollers: [{ at: 0.12, count: 4, len: 9, h: 1.0 }] },
   roadWidth: 14, seed: 52, theme: NEON.theme,
   props: NEON.props,
   control: [
@@ -342,6 +393,10 @@ const CROSSTOWN = {
 
 const LABYRINTH = {
   id: 'labyrinth', name: 'LABYRINTH', tag: 'Back-and-forth street maze. Nearly all corners, almost no straights.', difficulty: 5,
+  elev: { kickers: [{ at: 0.36, len: 14, h: 1.8 }, { at: 0.88, len: 14, h: 1.6 }],
+    tables: [{ at: 0.55, up: 14, top: 18, down: 18, h: 1.8 }],
+    hills: [{ at: 0.1, len: 50, h: 3 }, { at: 0.2, len: 50, h: 3.5 }, { at: 0.75, len: 60, h: 4 }],
+    rollers: [{ at: 0.41, count: 4, len: 9, h: 1.0 }, { at: 0.62, count: 3, len: 9, h: 1.0 }] },
   roadWidth: 14, seed: 53, theme: NEON.theme,
   props: NEON.props,
   control: [
@@ -364,6 +419,8 @@ const LABYRINTH = {
 
 const STARBURST = {
   id: 'starburst', name: 'STARBURST', tag: 'Five spiky points, ten bends. Tight in, tight out, repeat.', difficulty: 4,
+  elev: { hills: [{ at: 0.12, len: 60, h: 3.5 }, { at: 0.3, len: 50, h: 3 }, { at: 0.62, len: 60, h: 4 }, { at: 0.8, len: 50, h: 3 }],
+    rollers: [{ at: 0.45, count: 3, len: 10, h: 1.0 }] },
   roadWidth: 15, seed: 54, theme: NEON.theme,
   props: NEON.props,
   control: [
@@ -379,9 +436,12 @@ const STARBURST = {
 
 const COBRA = {
   id: 'cobra', name: 'COBRA', tag: 'Snaking hairpin stack over rolling hills, with a kicker and a table-top.', difficulty: 4,
+  elev: { kickers: [{ at: 0.6, len: 16, h: 2.2 }],
+    tables: [{ at: 0.69, up: 18, top: 24, down: 24, h: 2.6 }],
+    hills: [{ at: 0.2, len: 80, h: 4 }, { at: 0.39, len: 90, h: 6 }, { at: 0.82, len: 60, h: 4 }, { at: 0.9, len: 80, h: 6 }],
+    rollers: [{ at: 0.25, count: 3, len: 10, h: 1.0 }, { at: 0.74, count: 4, len: 12, h: 1.2 }] },
   roadWidth: 16, seed: 55, theme: DUNES.theme,
   props: DUNES.props,
-  elev: { kickers: [{ at: 0.60, len: 16, h: 2.2 }], tables: [{ at: 0.69, up: 18, top: 24, down: 24, h: 2.6 }], hills: [{ at: 0.2, len: 80, h: 4 }, { at: 0.39, len: 90, h: 6 }, { at: 0.82, len: 60, h: 4 }, { at: 0.90, len: 80, h: 6 }] },
   control: [
     [0, 0], [83, 0], [249, 0], [415, 0], [431, 3], [446, 10],
     [457, 21], [464, 36], [467, 52], [464, 69], [457, 84], [446, 95],
@@ -398,9 +458,10 @@ const COBRA = {
 
 const ALPINE = {
   id: 'alpine', name: 'ALPINE ESSES', tag: 'Rows of S-bends that really do climb and fall: up to 18 m of elevation.', difficulty: 5,
+  elev: { hills: [{ at: 0.03, len: 220, h: 16 }, { at: 0.25, len: 160, h: 10, hold: 80 }, { at: 0.52, len: 200, h: 18, hold: 120 }, { at: 0.83, len: 140, h: 8 }],
+    rollers: [{ at: 0.42, count: 4, len: 10, h: 1.2 }, { at: 0.7, count: 3, len: 10, h: 1.2 }] },
   roadWidth: 14, seed: 56, theme: FROST.theme,
   props: FROST.props,
-  elev: { hills: [{ at: 0.03, len: 220, h: 16 }, { at: 0.25, len: 160, hold: 80, h: 10 }, { at: 0.52, len: 200, hold: 120, h: 18 }, { at: 0.83, len: 140, h: 8 }] },
   control: [
     [0, 0], [70, -29], [98, -35], [127, -31], [152, -17], [228, 46],
     [303, 110], [327, 123], [355, 128], [382, 123], [406, 110], [475, 52],
@@ -419,9 +480,12 @@ const ALPINE = {
 
 const AVALANCHE = {
   id: 'avalanche', name: 'AVALANCHE RUN', tag: 'Diamond course with a table-top and a kicker on the fast diagonals.', difficulty: 4,
+  elev: { kickers: [{ at: 0.3, len: 16, h: 2.0 }, { at: 0.78, len: 14, h: 1.8 }],
+    tables: [{ at: 0.52, up: 16, top: 20, down: 20, h: 2.2 }],
+    hills: [{ at: 0.06, len: 90, h: 5 }, { at: 0.41, len: 60, h: 4, hold: 20 }, { at: 0.64, len: 80, h: 5 }],
+    rollers: [{ at: 0.85, count: 3, len: 9, h: 1.0 }] },
   roadWidth: 16, seed: 57, theme: FROST.theme,
   props: FROST.props,
-  elev: { tables: [{ at: 0.52, up: 16, top: 20, down: 20, h: 2.2 }], kickers: [{ at: 0.78, len: 14, h: 1.8 }], hills: [{ at: 0.06, len: 90, h: 5 }, { at: 0.41, len: 60, hold: 20, h: 4 }, { at: 0.64, len: 80, h: 5 }] },
   control: [
     [0, 0], [58, -37], [174, -110], [289, -184], [350, -207], [414, -207],
     [474, -182], [585, -109], [696, -36], [806, 37], [821, 51], [830, 68],
@@ -434,9 +498,10 @@ const AVALANCHE = {
 
 const FJORD = {
   id: 'fjord', name: 'FJORD', tag: 'Twisting coastal road that rises and falls over the headlands.', difficulty: 4,
+  elev: { hills: [{ at: 0.08, len: 130, h: 7 }, { at: 0.28, len: 160, h: 11, hold: 60 }, { at: 0.52, len: 120, h: 6 }, { at: 0.72, len: 150, h: 9 }],
+    rollers: [{ at: 0.2, count: 4, len: 10, h: 1.1 }, { at: 0.64, count: 3, len: 10, h: 1.1 }, { at: 0.88, count: 3, len: 10, h: 1.0 }] },
   roadWidth: 15, seed: 58, theme: FROST.theme,
   props: FROST.props,
-  elev: { hills: [{ at: 0.08, len: 130, h: 7 }, { at: 0.28, len: 160, hold: 60, h: 11 }, { at: 0.52, len: 120, h: 6 }, { at: 0.72, len: 150, h: 9 }] },
   control: [
     [0, 0], [-65, 32], [-84, 39], [-104, 39], [-123, 34], [-211, -2],
     [-298, -39], [-319, -51], [-336, -68], [-347, -88], [-396, -209], [-402, -238],
@@ -453,6 +518,8 @@ const FJORD = {
 
 const CHICANE = {
   id: 'chicane', name: 'CHICANE ALLEY', tag: 'Wall-to-wall chicanes on both straights. Smooth lines win.', difficulty: 4,
+  elev: { hills: [{ at: 0.25, len: 60, h: 3 }, { at: 0.45, len: 70, h: 4 }, { at: 0.65, len: 60, h: 3.5 }],
+    rollers: [{ at: 0.17, count: 3, len: 9, h: 1.0 }, { at: 0.84, count: 3, len: 9, h: 1.0 }] },
   roadWidth: 16, seed: 59, theme: SPEEDWAY.theme,
   props: SPEEDWAY.props,
   control: [
