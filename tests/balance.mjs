@@ -1,12 +1,12 @@
 // Headless lap simulator: an AI driver (pure pursuit + curvature-limited speed profile) drives every car around every map using the real Vehicle physics.
 import { Vehicle } from '../public/js/physics/Vehicle.js';
 import { CARS, tuningFor } from '../public/js/vehicle/cars.js';
-import { MAPS } from '../public/js/world/maps.js';
+import { BASE_MAPS as MAPS } from '../public/js/world/maps.js'; // flat twins share the same track, so the hilly list covers every layout
 import { sample, resample } from './_spline.mjs';
 import { angleDiff, clamp } from '../public/js/utils.js';
 
 const DT = 1 / 120, CTRL = 4;
-function prepare(map) {
+export function prepare(map) {
   const { P, L, ds } = resample(sample(map.control), 2.5), n = P.length, R = new Float32Array(n);
   for (let i = 0; i < n; i++) {
     let kmax = 0;
@@ -26,7 +26,7 @@ export function lap(map, car, track = prepare(map), opts = {}) {
   v.reset(P[0][0], P[0][1], hd);
   const aCorner = (opts.cornerG ?? 0.5) * T.latGrip, aBrake = (opts.brakeG ?? 0.75) * T.brake;
   let idx = 0, prog = 0, t = 0, grass = 0, inp = { throttle: 0, brake: 0, steer: 0, handbrake: false, nitro: false }, step = 0, maxOff = 0;
-  while (prog < n - 1 && t < 400) {
+  while (prog < n - 1 && t < (opts.maxT ?? 400)) {
     if (step++ % CTRL === 0) {
       let best = 1e18, bi = idx; // local search for the nearest centre-line sample
       for (let k = -4; k <= 20; k++) { const j = (idx + k + n) % n, d = (P[j][0] - v.x) ** 2 + (P[j][1] - v.z) ** 2; if (d < best) { best = d; bi = j; } }

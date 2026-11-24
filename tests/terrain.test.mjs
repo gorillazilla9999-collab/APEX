@@ -4,7 +4,7 @@ import { Vehicle } from '../public/js/physics/Vehicle.js';
 import { Colliders } from '../public/js/physics/Collision.js';
 import { qRot } from '../public/js/physics/rigid.js';
 import { Terrain, makeProfile, featureSpan } from '../public/js/world/terrain.js';
-import { MAPS } from '../public/js/world/maps.js';
+import { BASE_MAPS as MAPS, MAP_IDS, getMap } from '../public/js/world/maps.js';
 import { NetBuffer } from '../public/js/vehicle/NetBuffer.js';
 import { Rooms } from '../server/rooms.js';
 import { worldFor, spawn, run, DT, NONE } from './_lab3d.mjs';
@@ -24,10 +24,12 @@ const gas = (c) => ({ throttle: c.airborne ? 0 : 1 });
 
 // ---- every elevated map: well-formed, starting grid flat, features do not overlap, no map becomes a mountain ----
 const elevMaps = MAPS.filter((m) => m.elev);
-assert.equal(elevMaps.length, MAPS.length, 'every map has elevation');
+assert.equal(elevMaps.length, MAPS.length, 'every hilly map has elevation');
+for (const m of MAPS) { const f = worldFor(m.id + 'flat'); assert.ok(f.terrain.flat && f.map.flat && f.terrain.height(f.track.px[10], f.track.pz[10]) === 0, `${m.id}flat is perfectly flat`); }
+assert.ok(MAP_IDS.every((id) => getMap(id).id === id));
 for (const m of elevMaps) {
   const { track, terrain } = worldFor(m.id), L = track.length, tag = `[${m.id}]`, spans = [];
-  for (const kind of ['hills', 'kickers', 'tables']) for (const f of m.elev[kind] ?? []) {
+  for (const kind of ['hills', 'kickers', 'tables']) for (const f of terrain.elev[kind]) { // terrain.elev has rollers expanded into hills
     assert.ok(f.at > 0 && f.at < 1 && f.h > 0, `${tag} ${kind} sane`);
     spans.push([f.at * L, f.at * L + featureSpan(f, kind), kind]);
   }

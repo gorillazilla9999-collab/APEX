@@ -20,7 +20,7 @@
   <button id="btn-hud-pause" class="chip-btn" title="Pause (Esc)">❚❚ PAUSE</button>
   <canvas id="minimap" class="minimap round" width="200" height="200" title="Minimap: click or press M to change view"></canvas>
   <div class="hud-bl">
-    <div class="keys"><b>W</b> Accelerate <b>S</b> Brake <b>A/D</b> Steer <b>SPACE</b> Handbrake <b>SHIFT</b> Nitro <b>M</b> Minimap</div>
+    <div class="keys"><b>W</b> Accelerate <b>S</b> Brake <b>A/D</b> Steer <b>SPACE</b> Handbrake <b>SHIFT</b> Nitro <b>M</b> Minimap <b>C</b> Camera</div>
     <button id="btn-hud-reset" class="chip-btn">↺ RESET VEHICLE <small>R</small></button>
   </div>
   <div id="drift" class="drift">DRIFT</div>
@@ -119,8 +119,9 @@
 <div id="maps" class="screen hidden">
   <div class="panel maps">
     <h2>Select Map</h2>
+    <div id="terrain-seg" class="seg" role="group" aria-label="Terrain"><button type="button" data-t="hilly" class="on">▲ Hills &amp; jumps</button><button type="button" data-t="flat">▬ Flat</button></div>
     <div id="map-grid" class="map-grid"></div>
-    <p class="note">In a race lobby only the host can change the map. Free Drive and Quick Play use the map you pick here.</p>
+    <p class="note">In a race lobby only the host can change the map. Free Drive and Quick Play use the map you pick here. Every map comes in a hilly version (hills, ramps, jumps) and a flat one: same layout and look.</p>
     <button id="btn-maps-back" class="btn primary">Done</button>
   </div>
 </div>
@@ -133,6 +134,8 @@
     <label class="row">Engine volume <span id="set-volume-val"></span><input id="set-volume" type="range" min="0" max="100"></label>
     <label class="row">Graphics quality
       <select id="set-quality"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+    <label class="row">Camera
+      <select id="set-camera"><option value="chase">Chase (behind the car)</option><option value="first">First person (driver's seat)</option></select></label>
     <label class="row">Minimap
       <select id="set-minimap"><option value="follow">Follow car</option><option value="full">Full track</option><option value="off">Off</option></select></label>
     <label class="row">Show FPS &amp; ping <input id="set-stats" type="checkbox"></label>
@@ -149,7 +152,7 @@
     <h2>Controls</h2>
     <ul class="ctl">
       <li><b>W</b> Accelerate</li><li><b>S</b> Brake / Reverse</li><li><b>A</b> <b>D</b> Steer</li>
-      <li><b>SPACE</b> Handbrake (drift)</li><li><b>SHIFT</b> Nitro</li><li><b>R</b> Reset vehicle</li><li><b>In the air:</b> <b>W</b>/<b>S</b> flip · <b>A</b>/<b>D</b> barrel roll · <b>SPACE</b> level out</li><li><b>M</b> Minimap: follow / full track / off</li><li><b>ESC</b> Pause</li>
+      <li><b>SPACE</b> Handbrake (drift)</li><li><b>SHIFT</b> Nitro</li><li><b>R</b> Reset vehicle</li><li><b>In the air:</b> <b>W</b>/<b>S</b> flip · <b>A</b>/<b>D</b> barrel roll · <b>SPACE</b> level out</li><li><b>C</b> Camera: chase / first person</li><li><b>M</b> Minimap: follow / full track / off</li><li><b>ESC</b> Pause</li>
     </ul>
     <button id="btn-controls-back" class="btn primary">Back</button>
   </div>

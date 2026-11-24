@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Vehicle } from './physics/Vehicle.js';
 import { World } from './world/World.js';
 import { Track } from './world/Track.js';
-import { MAPS, DEFAULT_MAP, getMap, isMap } from './world/maps.js';
+import { MAPS, BASE_MAPS, DEFAULT_MAP, getMap, isMap } from './world/maps.js';
 import { CarModel } from './vehicle/CarModel.js';
 import { CARS, DEFAULT_CAR, getCar, isCar, tuningFor } from './vehicle/cars.js';
 import { RemoteCar } from './vehicle/RemoteCar.js';
@@ -30,7 +30,8 @@ const camera = new THREE.PerspectiveCamera(70, 1, 0.3, 2600);
 
 // ---- maps: tracks are cheap to build, so all of them exist up front (menu thumbnails + minimap); a World is built per selected map ----
 const pmrem = new THREE.PMREMGenerator(renderer);
-const tracks = new Map(MAPS.map((m) => [m.id, new Track(m)]));
+const tracks = new Map(); // a map and its flat twin share one Track (same layout)
+for (const m of BASE_MAPS) { const t = new Track(m); tracks.set(m.id, t); tracks.set(m.id + 'flat', t); }
 let world = null, envTarget = null;
 
 const vehicle = new Vehicle();
@@ -93,6 +94,11 @@ function loadMap(id) {
 }
 let modeBase = 'TEST DRIVE';
 function setModeLabel(text) { modeBase = text; ui.setMode(`${text} · ${world.map.name}`); }
+function toggleCamera() {
+  const next = settings.get('camera') === 'first' ? 'chase' : 'first';
+  settings.set('camera', next);
+  if (state === 'playing') ui.toast('CAMERA: ' + (next === 'first' ? 'FIRST PERSON' : 'CHASE'));
+}
 const MINI_MODES = ['follow', 'full', 'off'], MINI_NAMES = { follow: 'FOLLOW CAR', full: 'FULL TRACK', off: 'OFF' };
 function cycleMinimap() {
   const next = MINI_MODES[(MINI_MODES.indexOf(settings.get('minimap')) + 1) % MINI_MODES.length];
@@ -139,7 +145,8 @@ let joining = false, link = null, lobby = null, roomCode = null, race = freshRac
 const local = new LocalLink((id) => tracks.get(id));
 const isHost = () => !!link && !!lobby && lobby.host === link.id;
 const who = (id) => lobby?.players.find((p) => p.id === id);
-const mapsList = MAPS.map((def) => ({ def, track: tracks.get(def.id) }));
+const mapsList = BASE_MAPS.map((def) => ({ def, track: tracks.get(def.id) })); // one card per layout; the Hills / Flat toggle picks the version
+const allMaps = MAPS.map((def) => ({ def, track: tracks.get(def.id) }));
 
 function leaveLink() { link?.leave(); link = null; lobby = null; roomCode = null; race = freshRace(); ui.raceHud(false); ui.setStandings([], 0); clearRemotes(); }
 function leaveRoom() { leaveLink(); setModeLabel('TEST DRIVE'); spawnAtStart(); rig.snap(vehicle); setState('menu'); }
@@ -230,7 +237,7 @@ const ui = new UI(settings, {
   onPause() { if (state === 'playing') setState('paused'); },
   onReset() { resetVehicle(); if (state === 'paused') setState('playing'); },
 }, mapsList, CARS);
-ui.setNames(mapsList, CARS);
+ui.setNames(allMaps, CARS);
 const minimap = new Minimap(document.getElementById('minimap'));
 minimap.c.onclick = () => cycleMinimap();
 input.onPress('Escape', () => {
@@ -240,6 +247,7 @@ input.onPress('Escape', () => {
 });
 input.onPress('KeyR', () => { if (state === 'playing') resetVehicle(); });
 input.onPress('KeyM', () => { if (state === 'playing') cycleMinimap(); });
+input.onPress('KeyC', () => { if (state === 'playing') toggleCamera(); });
 // ---- multiplayer ----
 const remotes = new Map(); // socket id -> RemoteCar
 const clock = () => performance.now() / 1000;
@@ -350,12 +358,13 @@ function frame(now, background = false) {
     drive = race.active && race.locked ? NEUTRAL : race.active && !race.nitro ? { ...raw, nitro: false } : raw;
     for (acc += dt; acc >= STEP; acc -= STEP) simulate(STEP);
     if (vehicle.needsReset) { resetVehicle(false); ui.toast('FLIPPED · VEHICLE RESET'); } // crashed upside-down / stuck: put it back on the road
+    rig.mode = settings.get('camera'); car.body.visible = !rig.firstPerson; // in the driver's seat the bodywork is hidden (wheels stay, peeking in at the edges)
     car.update(dt, vehicle); emitEffects(dt, vehicle);
     rig.update(dt, vehicle, settings.get('fov'), settings.get('shake'));
     audio.update(vehicle, drive.throttle);
     ui.updateHud(vehicle);
   } else if (state === 'menu' || state === 'lobby' || state === 'results') {
-    car.update(dt, vehicle); rig.orbitAround(dt, vehicle);
+    car.body.visible = true; rig.mode = 'chase'; rig._restoreNear(); car.update(dt, vehicle); rig.orbitAround(dt, vehicle);
   }
   if (link === local) local.tick();
   if (remotes.size) {

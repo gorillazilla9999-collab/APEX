@@ -1,5 +1,6 @@
 import { drawThumbnail } from './Minimap.js';
 import { fmtTime, fmtGap, ordinal } from '../race/format.js';
+import { FLAT_SUFFIX } from '../world/maps.js';
 
 /** DOM layer: menus, settings binding, lobby / results screens and HUD updates. Game logic talks to it via callbacks. */
 const ARC_SPEED = 603 * 0.75, ARC_RPM = 515 * 0.75, MAX_KMH = 300;
@@ -78,17 +79,24 @@ export class UI {
     this.perf = $('perf'); this.perf.classList.toggle('hidden', !settings.get('stats'));
     settings.onChange((k, v) => { if (k === 'stats') this.perf.classList.toggle('hidden', !v); });
     settings.onChange((k, v) => { if (k === 'minimap') mm.value = v; }); // also changes via the M key
+    const cm = $('set-camera'); cm.value = settings.get('camera'); cm.onchange = () => settings.set('camera', cm.value);
+    settings.onChange((k, v) => { if (k === 'camera') cm.value = v; }); // also changes via the C key
   }
 
   _buildMapCards(maps) {
-    const grid = this.$('map-grid'); this.cards = new Map();
+    const grid = this.$('map-grid'); this.cards = new Map(); this.flatMode = false;
+    const seg = this.$('terrain-seg'); this.terrainBtns = [...seg.querySelectorAll('button')];
+    for (const b of this.terrainBtns) b.onclick = () => { // switch the loaded map to its other version; setMap() then updates the toggle
+      const want = b.dataset.t === 'flat'; if (want === this.flatMode || !this.mapId) return;
+      const base = this.baseId; this.cb.onSelectMap(want ? base + FLAT_SUFFIX : base);
+    };
     for (const { def, track } of maps) {
       const card = el('button', 'map-card'); card.type = 'button';
       const cv = document.createElement('canvas'); cv.width = 320; cv.height = 180; drawThumbnail(cv, def, track);
       const meta = el('div', 'map-meta'); meta.append(el('span', '', (track.length / 1000).toFixed(1) + ' KM'), el('span', 'dots', '●'.repeat(def.difficulty) + '○'.repeat(5 - def.difficulty)));
       meta.title = 'Length · difficulty';
       card.append(cv, el('div', 'map-name', def.name), el('div', 'map-tag', def.tag), meta);
-      card.onclick = () => this.cb.onSelectMap(def.id);
+      card.onclick = () => this.cb.onSelectMap(this.flatMode ? def.id + FLAT_SUFFIX : def.id);
       grid.append(card); this.cards.set(def.id, card);
     }
   }
@@ -117,8 +125,9 @@ export class UI {
   }
   /** Reflect the loaded map in the menu button and the selection screen. */
   setMap(def) {
-    this.mapId = def.id; this.$('map-name').textContent = def.name;
-    for (const [id, card] of this.cards) card.classList.toggle('sel', id === def.id);
+    this.mapId = def.id; this.baseId = def.base ?? def.id; this.flatMode = !!def.flat; this.$('map-name').textContent = def.name;
+    for (const [id, card] of this.cards) card.classList.toggle('sel', id === this.baseId);
+    for (const b of this.terrainBtns) b.classList.toggle('on', (b.dataset.t === 'flat') === this.flatMode);
   }
 
   show(name) {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { Vehicle } from '../public/js/physics/Vehicle.js';
 import { CARS, CAR_IDS, DEFAULT_CAR, isCar, getCar, tuningFor, STATS } from '../public/js/vehicle/cars.js';
-import { MAPS } from '../public/js/world/maps.js';
+import { BASE_MAPS as MAPS } from '../public/js/world/maps.js'; // flat twins share the same track, so the hilly list covers every layout
 import { lap } from './balance.mjs';
 
 assert.ok(CARS.length >= 6 && new Set(CAR_IDS).size === CARS.length && isCar(DEFAULT_CAR) && !isCar('x') && getCar('nope').id === CARS[0].id);

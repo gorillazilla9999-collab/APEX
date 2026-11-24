@@ -1,18 +1,28 @@
 // Data checks for every map: valid theme, closed track, no hairpins tighter than the car can drive, no section too close to another.
 // The centripetal Catmull-Rom below mirrors THREE.CatmullRomCurve3(..., true, 'centripetal') so this runs without Three.js.
 import assert from 'node:assert/strict';
-import { MAPS, MAP_IDS, DEFAULT_MAP, isMap, getMap } from '../public/js/world/maps.js';
+import { MAPS, BASE_MAPS, MAP_IDS, DEFAULT_MAP, isMap, getMap, flatId, hillyId, isFlat } from '../public/js/world/maps.js';
 import { sample, resample } from './_spline.mjs';
 
 const KNOWN_PROPS = ['water', 'containers', 'cranes', 'dunes', 'rocks', 'cacti', 'grandstands', 'floodlights', 'snowfall'];
 
 assert.equal(new Set(MAP_IDS).size, MAPS.length, 'unique ids');
 assert.ok(isMap(DEFAULT_MAP) && !isMap('nope') && !isMap(undefined) && getMap('nope').id === MAPS[0].id);
-assert.ok(MAPS.length >= 25, 'at least 25 maps');
+assert.ok(BASE_MAPS.length >= 65, 'at least 65 layouts');
+assert.equal(MAPS.length, BASE_MAPS.length * 2, 'every layout has a hilly and a flat version');
+for (const m of MAPS) assert.match(m.id, /^[a-z]+$/, `${m.id}: id is letters only`);
+for (const m of BASE_MAPS) { // the flat twin: same track, theme, scenery; no elevation
+  const f = getMap(flatId(m.id)), tag = `[${m.id}]`;
+  assert.ok(m.elev && !m.flat && !isFlat(m.id) && hillyId(m.id) === m.id, tag + ' hilly version has elevation');
+  assert.ok(f.flat && isFlat(f.id) && f.base === m.id && f.id === m.id + 'flat' && hillyId(f.id) === m.id && flatId(f.id) === f.id, tag + ' flat twin ids');
+  assert.ok(!f.elev && f.control === m.control && f.theme === m.theme && f.props === m.props && f.roadWidth === m.roadWidth && f.seed === m.seed, tag + ' flat twin shares layout + look');
+  assert.ok(f.name !== m.name && f.name.includes(m.name) && f.tag && f.difficulty === m.difficulty, tag + ' flat twin labels');
+}
+assert.ok(isMap('highwayflat') && getMap('highwayflat').flat && !isMap('highwayflatflat'));
 
-for (const m of MAPS) {
+for (const m of BASE_MAPS) {
   const th = m.theme, tag = `[${m.id}]`;
-  assert.match(m.id, /^[a-z]+$/, tag + ' id'); assert.ok(m.name && m.tag, tag + ' text');
+  assert.ok(m.name && m.tag, tag + ' text');
   assert.ok(m.difficulty >= 1 && m.difficulty <= 5, tag + ' difficulty'); assert.ok(m.roadWidth >= 12 && m.roadWidth <= 26, tag + ' road width');
   assert.ok(m.control.length >= 10 && m.control.every((p) => p.length === 2 && p.every(Number.isFinite)), tag + ' control points');
   assert.deepEqual(m.control[0].length, 2);

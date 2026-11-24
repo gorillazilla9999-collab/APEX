@@ -6,7 +6,7 @@ npm start      # http://localhost:3000  (open it in two tabs to test multiplayer
 npm test       # physics, room logic and socket wiring checks (no network needed)
 ```
 
-**Controls:** W accelerate · S brake/reverse · A/D steer · SPACE handbrake · SHIFT nitro · R reset · M minimap · ESC pause
+**Controls:** W accelerate · S brake/reverse · A/D steer · SPACE handbrake · SHIFT nitro · R reset · C camera (chase / first person) · M minimap · ESC pause
 **In the air:** W/S flip forward/back · A/D barrel roll · SPACE auto-level
 
 ## Cars
@@ -56,8 +56,13 @@ Pick one with the **Map** button on the main menu (your choice is remembered).
 
 The 20 newer maps reuse the five existing looks with brand-new track layouts; they range from near-straight ovals to turn-heavy mazes.
 
+### 40 more layouts, and a flat version of every map
+- **65 layouts** in total: the 25 above plus 40 more (8 per look: *sunset, neon, dunes, frost, speedway*): Sundown Boulevard, Midnight Docks, Mirage Flats, Aurora Ridge, Thunder Bowl and so on. They include blobby loops, L / T / U / Z / plus / staircase circuits with real straights and notched corners, long-straight stadiums and wavy "kinked" ones. Lengths run 1.9-3.1 km.
+- **Every layout comes in two versions**: the hilly one (hills, rollers, kickers, table-tops) and a **flat** one (same track, same look, perfectly flat). Pick the version with the **Hills / Flat** toggle at the top of the Select Map screen (the hilly and flat ids are `x` and `xflat`, so rooms, saved settings and the server need nothing special). 130 selectable maps in all.
+- The 40 new layouts live in `public/js/world/mapdata.js`, **generated** by `node tools/gen-maps.mjs` (deterministic). It builds each layout, keeps it only if it passes the map rules *and* the AI driver can lap it with every car, then places elevation from the layout itself: kickers and table-tops on the long straights, rollers on shorter ones, hills (higher on *frost* maps) through the twisty parts.
+
 ## Elevation, jumps and flips
-**All 25 maps** now have elevation (`elev` in `maps.js`). The road is a raised causeway on grass embankments, with the barriers on its edge.
+**Every map** (all 65 layouts) has a hilly version with elevation (`elev` in `maps.js`). The road is a raised causeway on grass embankments, with the barriers on its edge.
 - **Hills** slow you on the way up and speed you on the way down (gravity along the slope). Alpine Esses climbs 18 m, Frostbite Pass has a 14 m summit.
 - **Kickers** (ramp, then a sheer lip, marked with yellow/black hazard stripes) and **table-tops** sit on the straights. Air time and distance scale with speed (about 50 m at a roll, 80+ m flat out), so hitting one flat out is very different from rolling over it.
 - **Rollers / whoops**: runs of short bumps that kick the car off the ground at speed.
@@ -71,11 +76,11 @@ The 20 newer maps reuse the five existing looks with brand-new track layouts; th
 
 **Adding elevation to a map:** add `elev: { hills: [...], kickers: [...], tables: [...] }` (format in `world/terrain.js`; `at` is a 0..1 lap fraction; `rollers: [{ at, count, len, h }]` is shorthand for a run of bumps). Put kickers on straights with 100 m of run-up and 150 m of landing, and keep the last 150 m before the line flat (the grid is there). `npm test` checks all of this, and drives every kicker and table-top on every map to make sure it lands cleanly.
 
-Lap-time balance (`tests/cars.test.mjs`) still runs on the flat tracks: the AI ignores terrain, so elevated maps are for fun, not tuned for car balance.
+Lap-time balance (`tests/cars.test.mjs`) runs the AI on each layout's flat physics: the AI ignores terrain, so hills and jumps are for fun, not tuned for car balance (and a layout's flat twin is identical for the AI).
 
 **Minimap** (top-left): *Follow* (rotating, zooms out with speed), *Full track*, or off. Press **M**, click it, or use Settings.
 
-**Adding a map:** add an entry to `public/js/world/maps.js` (control points + theme + props). The menu, minimap, server validation and `npm test` (track radius / self-clearance checks) pick it up automatically. New props go in `world/Scenery.js`.
+**Adding a map:** add an entry to `public/js/world/maps.js` (control points + theme + props + `elev`), or rerun / extend `tools/gen-maps.mjs`. Its flat twin appears automatically. The menu, minimap, server validation and `npm test` (track radius / self-clearance checks, every ramp driven) pick it up automatically. New props go in `world/Scenery.js`.
 
 ## Multiplayer
 Enter a driver name and an optional room code on the menu, then press Play. Everyone using the same code shares a track.
@@ -96,7 +101,7 @@ Run a single instance: rooms live in server memory.
 - `server/` – Express static host, `rooms.js` (pure room/validation logic), `sockets.js` (Socket.IO wiring + 20 Hz snapshots)
 - `public/js/physics/` – pure-JS vehicle model (arcade driving + 3D rigid-body flight/tumbling, `rigid.js` quaternion helpers) + collision (no Three.js, unit-testable)
 - `public/js/vehicle/` – `cars.js` (car catalogue + stat→physics scaling, shared with the server), car mesh, `RemoteCar` (interpolated networked cars), smoke
-- `public/js/world/` – `maps.js` (map catalogue, shared with the server), `terrain.js` (road height profile + ground queries, shared by physics and meshes), track, procedural scenery (`World.js`, `Scenery.js`), canvas textures
+- `public/js/world/` – `maps.js` (map catalogue + flat twins, shared with the server), `mapdata.js` (the 40 generated layouts), `terrain.js` (road height profile + ground queries, shared by physics and meshes), track, procedural scenery (`World.js`, `Scenery.js`), canvas textures
 - `public/js/core/` – input, camera rig, audio, settings, UI, `Network` (join/leave/state sync, auto-rejoin), `Minimap.js` + `minimapMath.js`
 - `public/js/main.js` – game loop and state machine (menu / playing / paused)
 

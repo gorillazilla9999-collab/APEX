@@ -1,11 +1,19 @@
 import * as THREE from 'three';
 import { clamp, damp, angleDiff } from '../utils.js';
+import { qRot } from '../physics/rigid.js';
+
+const EYE = [0.3, 1.17, 0.1]; // driver's eye in car space (+X = left, +Y = up, +Z = forward): left seat, just behind the windscreen
+const TURN_LOOK = 0.28;        // how far the driver's head turns into a corner (rad at full lock)
+const UP = new THREE.Vector3(0, 1, 0);
+const Q_FLIP = new THREE.Quaternion(0, 1, 0, 0); // a Three.js camera looks down -Z, the car drives along +Z
 
 export class CameraRig {
   constructor(camera) {
     this.cam = camera; this.yaw = 0; this.fov = 70; this.shake = 0; this.orbit = 0; this.t = 0;
     this.pos = new THREE.Vector3(); this.look = new THREE.Vector3();
     this.ground = null; // optional (x, z) => terrain height, keeps the camera out of hills
+    this.mode = 'chase'; // 'chase' (behind the car) or 'first' (driver's seat)
+    this._q = new THREE.Quaternion(); this._yaw = new THREE.Quaternion(); this._near = camera.near;
   }
   snap(v) { this.yaw = v.heading; this.pos.set(0, -100, 0); this._chase(v, 1, 0, 70, true); }
 
@@ -21,7 +29,29 @@ export class CameraRig {
     this.cam.fov = 45; this.cam.updateProjectionMatrix();
   }
 
-  update(dt, v, fovBase, shakeOn) { this._chase(v, dt, 0, fovBase, false, shakeOn); }
+  get firstPerson() { return this.mode === 'first'; }
+
+  update(dt, v, fovBase, shakeOn) {
+    if (this.mode === 'first') this._cockpit(v, dt, fovBase, shakeOn);
+    else { this._restoreNear(); this._chase(v, dt, 0, fovBase, false, shakeOn); }
+  }
+
+  _restoreNear() { if (this.cam.near !== this._near) { this.cam.near = this._near; this.cam.updateProjectionMatrix(); } }
+
+  /** Driver's-eye view: the camera is bolted to the car, so it pitches over crests and ramps, rolls in flips and looks into corners. */
+  _cockpit(v, dt, fovBase, shakeOn) {
+    this.t += dt;
+    const q = v.q ?? [0, Math.sin(v.heading / 2), 0, Math.cos(v.heading / 2)], e = qRot(q, EYE);
+    this.yaw = v.heading; this.pos.set(v.x + e[0], (v.y ?? 0) + e[1], v.z + e[2]); // keep the chase rig primed so switching back is smooth
+    this.shake = Math.max(0, this.shake - dt * 2.5);
+    const amp = shakeOn ? this.shake * 0.12 + (v.nitroActive ? 0.01 : 0) + (v.onGrass ? v.speed * 0.0004 : 0) : 0;
+    this.cam.position.set(this.pos.x + (Math.random() - 0.5) * amp, this.pos.y + (Math.random() - 0.5) * amp, this.pos.z + (Math.random() - 0.5) * amp);
+    this._yaw.setFromAxisAngle(UP, -v.steer * TURN_LOOK); // steer > 0 = right = turn the head towards -yaw
+    this.cam.quaternion.set(q[0], q[1], q[2], q[3]).multiply(this._yaw).multiply(Q_FLIP);
+    const targetFov = fovBase + 6 + v.speed * 0.1 + (v.nitroActive ? 7 : 0);
+    this.fov = damp(this.fov, targetFov, 4, dt);
+    this.cam.fov = this.fov; this.cam.near = 0.1; this.cam.updateProjectionMatrix();
+  }
 
   _chase(v, dt, _u, fovBase, snap = false, shakeOn = true) {
     this.t += dt;
